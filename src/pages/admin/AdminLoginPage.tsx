@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 export default function AdminLoginPage() {
   const { user, loading, isStaff, signIn } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,17 +35,23 @@ export default function AdminLoginPage() {
     setSubmitting(true);
     setNotAuthorized(false);
 
-    const { error } = await signIn(email, password);
+    try {
+      const { error } = await signIn(email, password);
 
-    if (error) {
-      toast.error(error.message || 'Sign in failed');
+      if (error) {
+        toast.error(error.message || 'Sign in failed');
+      } else {
+        // Sign in succeeded; AuthContext will asynchronously populate the role
+        // via onAuthStateChange. Navigate immediately to trigger re-render.
+        console.log('Sign in successful, navigating to', from);
+        navigate(from, { replace: true });
+      }
+    } catch (err) {
+      console.error('Login submission error:', err);
+      toast.error('An unexpected error occurred during sign in. Please try again.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    // signIn succeeded; AuthContext will asynchronously populate the role.
-    // Give it a moment, then let the guard above route appropriately.
-    setSubmitting(false);
   };
 
   return (

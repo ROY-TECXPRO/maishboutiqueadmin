@@ -99,27 +99,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
+        console.log('Auth state change event:', event);
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('SIGNED_IN event detected, updating user context...');
+        }
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            fullName: profile?.full_name || '',
-            phone: profile?.phone || '',
-            avatarUrl: profile?.avatar_url || '',
-            county: profile?.county || '',
-            town: profile?.town || '',
-            address: profile?.address || '',
-            role: (profile?.role as UserRole) || 'customer',
-          });
+          if (profile) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              fullName: profile?.full_name || '',
+              phone: profile?.phone || '',
+              avatarUrl: profile?.avatar_url || '',
+              county: profile?.county || '',
+              town: profile?.town || '',
+              address: profile?.address || '',
+              role: (profile?.role as UserRole) || 'customer',
+            });
+          } else {
+            // Profile fetch failed but session exists - set basic user info
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              role: 'customer',
+            });
+          }
         } else {
           setUser(null);
         }
       } catch (error) {
         console.error('Error in auth state change:', error);
-        // Still update loading state even if there's an error
       } finally {
-        // Update loading state on auth changes
         setLoading(false);
       }
     });
@@ -182,9 +193,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { error };
       }
 
+      // Successfully authenticated - access_token is set by Supabase
+      // The onAuthStateChange listener will update the user context
       return { error: null };
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Sign in error during token storage phase:', error);
       const err = error as Error;
       if (err.message.includes('timed out') || err.message.includes('network') || err.name === 'AbortError') {
         return { error: new Error('Connection timed out. Please check your internet connection and try again.') };
