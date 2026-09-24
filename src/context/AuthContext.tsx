@@ -37,17 +37,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      // Create an AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-
-      clearTimeout(timeoutId);
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
@@ -104,9 +98,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Defer profile fetch to avoid blocking the auth state callback
+      // Use a timeout fallback to guarantee loading is always reset
+      const profileFetchTimeout = setTimeout(() => {
+        console.warn('Profile fetch timed out, resetting loading state');
+        setLoading(false);
+      }, 5000);
+
       setTimeout(async () => {
         try {
-          console.log('Auth state change event:', event);
           if (session?.user) {
             const profile = await fetchProfile(session.user.id);
             if (profile) {
@@ -135,6 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } catch (error) {
           console.error('Error in auth state change:', error);
         } finally {
+          clearTimeout(profileFetchTimeout);
           setLoading(false);
         }
       }, 0);
