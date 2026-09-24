@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" fill="none">
+  <rect width="400" height="500" fill="#f3f4f6"/>
+  <rect x="100" y="150" width="200" height="200" rx="8" fill="#e5e7eb"/>
+  <text x="200" y="400" text-anchor="middle" font-family="system-ui" font-size="18" fill="#6b7280">Category</text>
+</svg>

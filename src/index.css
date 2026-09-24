@@ -1,0 +1,545 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Page Loader Animations */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(50px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-10px);
+  }
+  70% {
+    transform: scale(0.95) translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bounce-out {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  30% {
+    transform: scale(1.1) translateY(-10px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) translateY(50px);
+  }
+}
+
+.animate-bounce-in {
+  animation-name: bounce-in;
+  animation-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  animation-fill-mode: forwards;
+}
+
+.animate-bounce-out {
+  animation-name: bounce-out;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+
+/* Maish Fashion Boutique - Design System
+   A modern, elegant fashion e-commerce experience
+   Mobile-first, touch-optimized, PWA-ready
+*/
+
+@layer base {
+  :root {
+    /* Brand Colors - Warm, Elegant Fashion Palette */
+    --background: 30 25% 98%;
+    --foreground: 20 20% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 20% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 20% 12%;
+
+    /* Primary - Rich Terracotta Rose */
+    --primary: 12 76% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Soft Blush */
+    --secondary: 25 30% 94%;
+    --secondary-foreground: 20 20% 20%;
+
+    /* Muted - Warm Gray */
+    --muted: 30 15% 92%;
+    --muted-foreground: 20 10% 45%;
+
+    /* Accent - Luxe Gold */
+    --accent: 38 92% 50%;
+    --accent-foreground: 20 20% 12%;
+
+    /* Success - Fresh Green */
+    --success: 152 69% 40%;
+    --success-foreground: 0 0% 100%;
+
+    /* Destructive - Soft Red */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 12 76% 52%;
+
+    --radius: 0.75rem;
+
+    /* Fashion-specific tokens */
+    --hero-gradient: linear-gradient(135deg, hsl(12 76% 52% / 0.1) 0%, hsl(38 92% 50% / 0.1) 100%);
+    --card-shadow: 0 4px 24px -4px hsl(20 20% 12% / 0.08);
+    --card-shadow-hover: 0 12px 32px -8px hsl(20 20% 12% / 0.15);
+    --nav-blur: blur(20px);
+    
+    /* Sale/Promo Colors */
+    --sale: 0 84% 60%;
+    --promo: 38 92% 50%;
+
+    /* Category Colors */
+    --women: 340 75% 55%;
+    --men: 215 70% 45%;
+    --kids: 280 65% 55%;
+    --sports: 160 70% 40%;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 20 20% 12%;
+    --sidebar-primary: 12 76% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 30% 94%;
+    --sidebar-accent-foreground: 20 20% 20%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 12 76% 52%;
+  }
+
+  .dark {
+    --background: 20 15% 8%;
+    --foreground: 30 20% 95%;
+
+    --card: 20 15% 12%;
+    --card-foreground: 30 20% 95%;
+
+    --popover: 20 15% 12%;
+    --popover-foreground: 30 20% 95%;
+
+    --primary: 12 76% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 20 15% 18%;
+    --secondary-foreground: 30 20% 90%;
+
+    --muted: 20 15% 20%;
+    --muted-foreground: 30 10% 55%;
+
+    --accent: 38 85% 55%;
+    --accent-foreground: 20 20% 8%;
+
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 20 15% 20%;
+    --input: 20 15% 20%;
+    --ring: 12 76% 58%;
+
+    --hero-gradient: linear-gradient(135deg, hsl(12 76% 52% / 0.15) 0%, hsl(38 92% 50% / 0.15) 100%);
+    --card-shadow: 0 4px 24px -4px hsl(0 0% 0% / 0.4);
+    --card-shadow-hover: 0 12px 32px -8px hsl(0 0% 0% / 0.5);
+
+    --sale: 0 75% 55%;
+    --promo: 38 85% 55%;
+
+    --women: 340 70% 60%;
+    --men: 215 65% 55%;
+    --kids: 280 60% 60%;
+    --sports: 160 65% 50%;
+
+    --sidebar-background: 20 15% 10%;
+    --sidebar-foreground: 30 20% 95%;
+    --sidebar-primary: 12 76% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 20 15% 18%;
+    --sidebar-accent-foreground: 30 20% 90%;
+    --sidebar-border: 20 15% 20%;
+    --sidebar-ring: 12 76% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Elegant Display Font */
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly tap targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Safe area padding for notched devices */
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+}
+
+@layer components {
+  /* Fashion Card Styles */
+  .fashion-card {
+    @apply bg-card rounded-lg overflow-hidden transition-all duration-300;
+    box-shadow: var(--card-shadow);
+  }
+
+  .fashion-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    @apply -translate-y-1;
+  }
+
+  /* Product Image Container */
+  .product-image-container {
+    @apply relative overflow-hidden bg-muted;
+    aspect-ratio: 3/4;
+  }
+
+  .product-image-container img {
+    @apply w-full h-full object-contain transition-transform duration-500;
+  }
+
+  .product-image-container:hover img {
+    @apply scale-105;
+  }
+
+  /* Mobile-optimized product card */
+  @media (max-width: 640px) {
+    .fashion-card {
+      @apply rounded-md;
+    }
+    
+    .product-image-container {
+      aspect-ratio: 1/1;
+    }
+    
+    /* Ensure images fit properly on mobile - contain within box */
+    .product-image-container img {
+      object-fit: contain;
+      object-position: center;
+    }
+  }
+
+  /* Ensure images never overflow */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Prevent horizontal scroll on mobile */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Sale Badge */
+  .sale-badge {
+    @apply absolute top-2 left-2 px-1.5 py-0.5 text-xs font-semibold rounded-md;
+    background-color: hsl(var(--sale));
+    color: white;
+  }
+
+  /* New Badge */
+  .new-badge {
+    @apply absolute top-2 left-2 px-1.5 py-0.5 text-xs font-semibold rounded-md bg-foreground text-background;
+  }
+
+  /* Mobile-optimized badges */
+  @media (max-width: 640px) {
+    .sale-badge, .new-badge {
+      @apply text-[10px] px-1 py-0.5;
+      top: 0.25rem;
+      left: 0.25rem;
+    }
+  }
+
+  /* Wishlist Button */
+  .wishlist-btn {
+    @apply absolute top-2 right-2 w-8 h-8 md:w-9 md:h-9 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center transition-all duration-200 hover:bg-background hover:scale-110;
+  }
+
+  /* Mobile-optimized wishlist button */
+  @media (max-width: 640px) {
+    .wishlist-btn {
+      @apply w-7 h-7;
+      top: 0.25rem;
+      right: 0.25rem;
+    }
+    .wishlist-btn svg {
+      @apply w-4 h-4;
+    }
+  }
+
+  /* Bottom Navigation */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border z-50;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  /* Glass Effect */
+  .glass {
+    @apply bg-background/80 backdrop-blur-md;
+  }
+
+  /* Category Pill */
+  .category-pill {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground;
+  }
+
+  .category-pill.active {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* Price Display */
+  .price {
+    @apply font-semibold text-foreground;
+  }
+
+  .price-original {
+    @apply text-muted-foreground line-through text-sm;
+  }
+
+  .price-sale {
+    @apply font-bold;
+    color: hsl(var(--sale));
+  }
+
+  /* Size Selector */
+  .size-btn {
+    @apply min-w-[44px] h-11 px-3 rounded-lg border-2 border-border text-sm font-medium transition-all duration-200 hover:border-primary;
+  }
+
+  .size-btn.selected {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  .size-btn.unavailable {
+    @apply opacity-40 cursor-not-allowed line-through;
+  }
+
+  /* Color Selector */
+  .color-btn {
+    @apply w-9 h-9 rounded-full border-2 border-transparent transition-all duration-200 hover:scale-110;
+  }
+
+  .color-btn.selected {
+    @apply ring-2 ring-primary ring-offset-2;
+  }
+
+  /* Quantity Selector */
+  .quantity-btn {
+    @apply w-10 h-10 rounded-lg flex items-center justify-center transition-colors duration-200 bg-secondary hover:bg-muted touch-target;
+  }
+
+  /* Search Input */
+  .search-input {
+    @apply w-full h-12 px-4 pl-12 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:bg-background transition-all duration-200;
+  }
+
+  /* Hero Section */
+  .hero-section {
+    background: var(--hero-gradient);
+  }
+
+  /* Promo Banner */
+  .promo-banner {
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground py-2 px-4 text-center text-sm font-medium;
+    /* CSS containment to prevent layout shift during hydration */
+    contain: layout style;
+    height: 2.5rem;
+  }
+
+  /* Offer Banner containment to reserve space and prevent CLS */
+  .offer-banner {
+    contain: layout style;
+    min-height: 3.5rem;
+  }
+
+  /* Desktop header containment */
+  .desktop-header {
+    contain: layout style;
+  }
+
+  /* Star Rating */
+  .star-filled {
+    color: hsl(var(--accent));
+  }
+
+  .star-empty {
+    @apply text-muted-foreground/30;
+  }
+
+  /* Loading Skeleton */
+  .skeleton-shimmer {
+    @apply relative overflow-hidden bg-muted rounded-lg;
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, hsl(var(--background) / 0.4), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Pull to refresh indicator */
+  .pull-indicator {
+    @apply flex items-center justify-center py-4 text-muted-foreground;
+  }
+
+  /* App-like transitions */
+  .page-transition {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Filter chip */
+  .filter-chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-secondary text-secondary-foreground border border-border transition-all duration-200;
+  }
+
+  .filter-chip.active {
+    @apply bg-primary text-primary-foreground border-primary;
+  }
+
+  /* Review Card */
+  .review-card {
+    @apply bg-card rounded-xl p-4 border border-border;
+  }
+
+  /* Install Prompt */
+  .install-prompt {
+    @apply fixed bottom-20 left-4 right-4 bg-card rounded-2xl p-4 shadow-2xl border border-border z-40;
+    animation: slideUp 0.4s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer utilities {
+  /* Touch-safe utilities */
+  .touch-none {
+    touch-action: none;
+  }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+
+  /* Safe area utilities */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+  }
+
+  /* Line clamp utilities */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Aspect ratios */
+  .aspect-product {
+    aspect-ratio: 3/4;
+  }
+
+  .aspect-banner {
+    aspect-ratio: 16/9;
+  }
+
+  .aspect-square {
+    aspect-ratio: 1/1;
+  }
+}

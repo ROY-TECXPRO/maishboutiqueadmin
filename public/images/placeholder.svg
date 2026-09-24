@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" fill="none">
+  <rect width="400" height="500" fill="#f3f4f6"/>
+  <rect x="140" y="180" width="120" height="120" rx="8" fill="#e5e7eb"/>
+  <path d="M200 160L240 210H160L200 160Z" fill="#9ca3af"/>
+  <path d="M200 300L240 250H160L200 300Z" fill="#9ca3af"/>
+  <rect x="180" y="280" width="40" height="60" rx="4" fill="#9ca3af"/>
+  <text x="200" y="370" text-anchor="middle" font-family="system-ui" font-size="14" fill="#6b7280">Product Image</text>
+</svg>

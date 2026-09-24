@@ -1,0 +1,58 @@
+{
+  "name": "Maish Fashion Boutique",
+  "short_name": "Maish Fashion",
+  "description": "Kenya's Premier Fashion Destination - Shop Women Wear, Men Wear, Kids Wear, Work Wear, Uniforms & More",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#d84a1b",
+  "orientation": "portrait-primary",
+  "scope": "./",
+  "lang": "en",
+  "categories": ["shopping", "fashion"],
+  "icons": [
+    {
+      "src": "./App-icon.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./App-icon.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./App-icon.webp",
+      "sizes": "any",
+      "type": "image/webp",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Shop Women",
+      "short_name": "Women",
+      "description": "Shop women wear collection",
+      "url": "./category/women-wear",
+      "icons": [{ "src": "./App-icon.webp", "sizes": "192x192" }]
+    },
+    {
+      "name": "Shop Men",
+      "short_name": "Men",
+      "description": "Shop men wear collection",
+      "url": "./category/men-wear",
+      "icons": [{ "src": "./App-icon.webp", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sale",
+      "short_name": "Sale",
+      "description": "View sale items",
+      "url": "./sale",
+      "icons": [{ "src": "./App-icon.webp", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

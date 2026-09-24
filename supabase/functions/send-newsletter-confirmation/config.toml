@@ -1,0 +1,3 @@
+[functions]
+name = "send-newsletter-confirmation"
+handler = "./index.ts"
