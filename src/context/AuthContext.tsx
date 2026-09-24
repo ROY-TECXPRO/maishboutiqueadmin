@@ -96,43 +96,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     checkSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        console.log('Auth state change event:', event);
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('SIGNED_IN event detected, updating user context...');
-        }
-        if (session?.user) {
-          const profile = await fetchProfile(session.user.id);
-          if (profile) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email || '',
-              fullName: profile?.full_name || '',
-              phone: profile?.phone || '',
-              avatarUrl: profile?.avatar_url || '',
-              county: profile?.county || '',
-              town: profile?.town || '',
-              address: profile?.address || '',
-              role: (profile?.role as UserRole) || 'customer',
-            });
-          } else {
-            // Profile fetch failed but session exists - set basic user info
-            setUser({
-              id: session.user.id,
-              email: session.user.email || '',
-              role: 'customer',
-            });
-          }
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Error in auth state change:', error);
-      } finally {
-        setLoading(false);
+    // Listen for auth changes (must be synchronous per Supabase docs to avoid deadlock)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Set loading state immediately and synchronously
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        setLoading(true);
       }
+
+      // Defer profile fetch to avoid blocking the auth state callback
+      setTimeout(async () => {
+        try {
+          console.log('Auth state change event:', event);
+          if (session?.user) {
+            const profile = await fetchProfile(session.user.id);
+            if (profile) {
+              setUser({
+                id: session.user.id,
+                email: session.user.email || '',
+                fullName: profile?.full_name || '',
+                phone: profile?.phone || '',
+                avatarUrl: profile?.avatar_url || '',
+                county: profile?.county || '',
+                town: profile?.town || '',
+                address: profile?.address || '',
+                role: (profile?.role as UserRole) || 'customer',
+              });
+            } else {
+              // Profile fetch failed but session exists - set basic user info
+              setUser({
+                id: session.user.id,
+                email: session.user.email || '',
+                role: 'customer',
+              });
+            }
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Error in auth state change:', error);
+        } finally {
+          setLoading(false);
+        }
+      }, 0);
     });
 
     return () => subscription.unsubscribe();
