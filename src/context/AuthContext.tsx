@@ -4,6 +4,21 @@ import { toast } from 'sonner';
 
 export type UserRole = 'admin' | 'staff' | 'customer';
 
+interface ProfileRow {
+  full_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+  county?: string | null;
+  town?: string | null;
+  address?: string | null;
+  role?: string | null;
+}
+
+interface SessionUser {
+  id: string;
+  email?: string | null;
+}
+
 interface User {
   id: string;
   email: string;
@@ -35,11 +50,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string): Promise<ProfileRow | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, phone, avatar_url, county, town, address, role')
         .eq('id', userId)
         .single();
 
@@ -48,12 +63,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return null;
       }
 
-      return data;
+      return (data as ProfileRow) ?? null;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;
     }
   }, []);
+
+  // Build the app User from a session + fetched profile. The role comes
+  // exclusively from public.profiles.role — never from the JWT's database
+  // role claim. When a profile row exists we trust its role value as-is and
+  // do not overwrite it with a default; only fall back to 'customer' when
+  // there is no profile row at all.
+  const buildUser = (session: { user: SessionUser }, profile: ProfileRow | null): User => ({
+    id: session.user.id,
+    email: session.user.email || '',
+    fullName: profile?.full_name || '',
+    phone: profile?.phone || '',
+    avatarUrl: profile?.avatar_url || '',
+    county: profile?.county || '',
+    town: profile?.town || '',
+    address: profile?.address || '',
+    role: (profile?.role as UserRole) || 'customer',
+  });
 
   useEffect(() => {
     // Check for existing session
@@ -68,17 +100,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            fullName: profile?.full_name || '',
-            phone: profile?.phone || '',
-            avatarUrl: profile?.avatar_url || '',
-            county: profile?.county || '',
-            town: profile?.town || '',
-            address: profile?.address || '',
-            role: (profile?.role as UserRole) || 'customer',
-          });
+          setUser(buildUser(session, profile));
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -109,17 +131,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (session?.user) {
             const profile = await fetchProfile(session.user.id);
             if (profile) {
-              setUser({
-                id: session.user.id,
-                email: session.user.email || '',
-                fullName: profile?.full_name || '',
-                phone: profile?.phone || '',
-                avatarUrl: profile?.avatar_url || '',
-                county: profile?.county || '',
-                town: profile?.town || '',
-                address: profile?.address || '',
-                role: (profile?.role as UserRole) || 'customer',
-              });
+              setUser(buildUser(session, profile));
             } else {
               // Profile fetch failed but session exists - set basic user info
               setUser({
@@ -264,17 +276,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          fullName: profile?.full_name || '',
-          phone: profile?.phone || '',
-          avatarUrl: profile?.avatar_url || '',
-          county: profile?.county || '',
-          town: profile?.town || '',
-          address: profile?.address || '',
-          role: (profile?.role as UserRole) || 'customer',
-        });
+        setUser(buildUser(session, profile));
       }
     } catch (error) {
       console.error('Error refreshing user:', error);

@@ -49,18 +49,14 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 
 const OrdersPage: React.FC = () => {
   const { orders, updateOrderStatus, fetchUserOrders, fetchAllOrders } = useOrders();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
 
-  // Admin email - change this to your email to see all orders
-  const ADMIN_EMAIL = 'maishboutiquemarketing@gmail.com'; // Change to your admin email
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-
+  // Admin access is determined by public.profiles.role, not by email.
   useEffect(() => {
-    // If admin, fetch all orders. Otherwise, fetch user's orders if logged in
     if (isAdmin) {
       fetchAllOrders();
       setIsAdminView(true);

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   county TEXT,
   town TEXT,
   address TEXT,
+  role TEXT DEFAULT 'customer',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
