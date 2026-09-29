@@ -1,13 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Supabase credentials - Remote project with optimized timeout for local testing
-const supabaseUrl = 'https://crbtwikhkqbhqkimyqay.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyYnR3aWtoa3FiaHFraW15cWF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MjYxMDksImV4cCI6MjA4NjIwMjEwOX0.rcAdNQyKYYRnWpuSifQZ4SgPp0JbIcZY1quzTAG0a14';
+// Supabase credentials — read from environment, falling back to the
+// current project so this keeps working even before env vars are set
+// on Netlify. This is a Vite project, so variables MUST be prefixed
+// VITE_ (not NEXT_PUBLIC_ — that prefix is a Next.js convention and
+// Vite will not expose it to the browser at all).
+//
+// Set these in Netlify: Site settings > Environment variables
+//   VITE_SUPABASE_URL=https://xttlmtwoenntqbrhkkox.supabase.co
+//   VITE_SUPABASE_ANON_KEY=<the publishable/anon key from Project Settings > API>
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xttlmtwoenntqbrhkkox.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_2k-nZG-0M3F_8CmBt41HNw_1JXX4Jhj';
 
 // Custom fetch with timeout
 const fetchWithTimeout = (url: string | URL | Request, options: RequestInit = {}): Promise<Response> => {
   const controller = new AbortController();
-  const timeoutMs = 15000; // 15 second timeout
+  const timeoutMs = 10000; // 10 second timeout
   
   const timeoutId = setTimeout(() => {
     controller.abort();

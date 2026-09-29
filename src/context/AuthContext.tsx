@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           const profile = await fetchProfile(session.user.id);
           setUser(buildUser(session, profile));
@@ -180,8 +180,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { error };
       }
 
-      // Skip profile upsert for now to test if that's causing the delay
-      // Profile can be created later when needed
+      // The profiles row is created automatically by the on_auth_user_created
+      // trigger (see supabase-master-schema.sql) — no manual insert needed here.
       console.log('Signup successful, user ID:', data.user?.id);
 
       return { error: null };
@@ -262,7 +262,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Refresh user data
       await refreshUser();
-      
+
       return { error: null };
     } catch (error) {
       const err = error as Error;
@@ -285,7 +285,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const checkEmailExists = async (email: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', email.toLowerCase())

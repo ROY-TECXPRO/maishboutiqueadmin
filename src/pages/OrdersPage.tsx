@@ -49,22 +49,24 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 
 const OrdersPage: React.FC = () => {
   const { orders, updateOrderStatus, fetchUserOrders, fetchAllOrders } = useOrders();
-  const { user, isAdmin } = useAuth();
+  const { user, isStaff } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
 
-  // Admin access is determined by public.profiles.role, not by email.
   useEffect(() => {
-    if (isAdmin) {
+    // If staff/admin, fetch all orders. Otherwise, fetch user's orders if logged in.
+    // Enforcement is server-side (orders RLS checks profiles.role) — this
+    // only decides which fetch/view to render, not what the DB will allow.
+    if (isStaff) {
       fetchAllOrders();
       setIsAdminView(true);
     } else if (user) {
       fetchUserOrders(user.id);
       setIsAdminView(false);
     }
-  }, [user, isAdmin]);
+  }, [user, isStaff]);
 
   const filteredOrders = orders.filter((order) => {
     // For non-admin users, hide cancelled orders

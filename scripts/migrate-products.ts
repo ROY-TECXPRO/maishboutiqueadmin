@@ -6,7 +6,7 @@
  * PREREQUISITES:
  *   1. supabase-product-system.sql has already been executed against the project.
  *   2. Environment variables set (see .env.migration.example):
- *        SUPABASE_URL=https://crbtwikhkqbhqkimyqay.supabase.co
+ *        SUPABASE_URL=https://xttlmtwoenntqbrhkkox.supabase.co
  *        SUPABASE_SERVICE_ROLE_KEY=<service role key, NOT the anon key>
  *
  *   The service role key is required because it bypasses RLS for this
