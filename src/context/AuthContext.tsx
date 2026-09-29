@@ -40,6 +40,7 @@ interface AuthContextType {
   updateProfile: (data: Partial<User>) => Promise<{ error: Error | null }>;
   checkEmailExists: (email: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
+  resendConfirmation: (email: string) => Promise<{ error: Error | null }>;
   isStaff: boolean;
   isAdmin: boolean;
 }
@@ -207,6 +208,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error.message.includes('timed out') || error.message.includes('network') || error.message.includes('fetch')) {
           return { error: new Error('Connection timed out. Please check your internet connection and try again.') };
         }
+        // Handle email not confirmed - guide user to resend confirmation
+        if (error.message.toLowerCase().includes('email not confirmed') || error.message.toLowerCase().includes('email_confirm')) {
+          return { error: new Error('Email not confirmed. Please check your inbox for the confirmation link, or request a new one.') };
+        }
         return { error };
       }
 
@@ -215,6 +220,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { error: null };
     } catch (error) {
       console.error('Sign in error during token storage phase:', error);
+      const err = error as Error;
+      if (err.message.includes('timed out') || err.message.includes('network') || err.name === 'AbortError') {
+        return { error: new Error('Connection timed out. Please check your internet connection and try again.') };
+      }
+      return { error: err };
+    }
+  };
+
+  const resendConfirmation = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.toLowerCase(),
+      });
+
+      if (error) {
+        if (error.message.includes('timed out') || error.message.includes('network') || error.message.includes('fetch')) {
+          return { error: new Error('Connection timed out. Please check your internet connection and try again.') };
+        }
+        return { error };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Resend confirmation error:', error);
       const err = error as Error;
       if (err.message.includes('timed out') || err.message.includes('network') || err.name === 'AbortError') {
         return { error: new Error('Connection timed out. Please check your internet connection and try again.') };
@@ -310,6 +340,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateProfile,
       checkEmailExists,
       refreshUser,
+      resendConfirmation,
       isStaff,
       isAdmin,
     }}>
