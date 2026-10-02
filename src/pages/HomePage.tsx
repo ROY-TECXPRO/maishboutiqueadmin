@@ -5,7 +5,8 @@ import { ArrowRight, Truck, Shield, RefreshCw, Sparkles, Clock, CheckCircle, Ale
 import { ProductGrid } from '@/components/product/ProductGrid';
 import { CategoryGrid } from '@/components/category/CategoryCard';
 import { ReviewsSlider } from '@/components/reviews/ReviewCard';
-import { categories, products, googleReviews, getNewArrivals, getSaleProducts } from '@/data/products';
+import { googleReviews } from '@/data/products';
+import { useCatalog, selectNewArrivals, selectSaleProducts } from '@/lib/catalog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 
@@ -146,10 +147,13 @@ const preloadHeroImages = (images: string[]) => {
 };
 
 const HomePage = () => {
-  const newArrivals = getNewArrivals();
-  const saleProducts = getSaleProducts();
-  const popularProducts = products.slice(0, 8);
-  const accessoriesProducts = products.filter(p => p.category === 'accessories').slice(0, 8);
+  // Live catalogue: admin changes to the `products` table show up here on
+  // refresh. Falls back to the static bundle while the table is empty.
+  const { products: liveProducts, categories: liveCategories } = useCatalog();
+  const newArrivals = selectNewArrivals(liveProducts, 8);
+  const saleProducts = selectSaleProducts(liveProducts, 12);
+  const popularProducts = liveProducts.slice(0, 8);
+  const accessoriesProducts = liveProducts.filter(p => p.category === 'accessories').slice(0, 8);
   const [nowTs, setNowTs] = useState(getNairobiTimestamp);
   const [activeIndex, setActiveIndex] = useState(0);
   const [email, setEmail] = useState('');
@@ -562,7 +566,7 @@ const HomePage = () => {
               View All
             </Link>
           </div>
-          <CategoryGrid categories={categories} variant="scroll" />
+          <CategoryGrid categories={liveCategories} variant="scroll" />
         </div>
       </section>
 

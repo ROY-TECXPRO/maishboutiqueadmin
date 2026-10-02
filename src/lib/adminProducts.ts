@@ -112,6 +112,28 @@ export async function deleteProduct(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Uploads a product image to the public `maish-product-images` bucket and
+ * returns its public URL.
+ *
+ * RLS on storage.objects only permits this for profiles.role IN
+ * ('admin','staff'), so a customer's upload is rejected server-side.
+ */
+export async function uploadProductImage(file: File): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await supabase.storage.from('maish-product-images').upload(path, file, {
+    cacheControl: '31536000',
+    upsert: false,
+  });
+
+  if (error) throw new Error(`Image upload failed: ${error.message}`);
+
+  const { data } = supabase.storage.from('maish-product-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export interface CategoryInput {
   name: string;
   slug: string;

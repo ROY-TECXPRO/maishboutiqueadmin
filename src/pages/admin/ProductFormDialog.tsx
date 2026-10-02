@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Loader2 } from 'lucide-react';
 import type { CategoryRecord } from '@/types';
-import { slugify } from '@/lib/adminProducts';
+import { slugify, uploadProductImage } from '@/lib/adminProducts';
+import { toast } from 'sonner';
 
 export interface ProductFormState {
   name: string;
@@ -22,6 +23,7 @@ export interface ProductFormState {
   is_active: boolean;
   is_new: boolean;
   is_sale: boolean;
+  images: Array<{ src: string; alt: string }>;
 }
 
 export const emptyProductForm: ProductFormState = {
@@ -37,6 +39,7 @@ export const emptyProductForm: ProductFormState = {
   is_active: true,
   is_new: false,
   is_sale: false,
+  images: [],
 };
 
 export interface ProductFormDialogProps {
@@ -67,6 +70,23 @@ export function ProductFormDialog({
 }: ProductFormDialogProps) {
   const [form, setForm] = useState<ProductFormState>(initial ?? emptyProductForm);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadProductImage(file);
+      setForm((prev) => ({ ...prev, images: [{ src: url, alt: prev.name || file.name }] }));
+      toast.success('Image uploaded');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
 
   useEffect(() => {
     if (open) {
@@ -218,6 +238,48 @@ export function ProductFormDialog({
               onChange={(e) => set('description', e.target.value)}
               placeholder="Describe the product…"
             />
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="pf-image">Product image</Label>
+            <div className="flex items-start gap-3">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted/50 flex items-center justify-center">
+                {form.images[0]?.src ? (
+                  <img
+                    src={form.images[0].src}
+                    alt={form.images[0].alt}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground px-1 text-center">No image</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Input
+                  id="pf-image"
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={handleImageUpload}
+                  className="h-auto py-2 text-sm"
+                />
+                <Input
+                  placeholder="…or paste an image URL"
+                  value={form.images[0]?.src ?? ''}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      images: e.target.value
+                        ? [{ src: e.target.value, alt: prev.name || 'product image' }]
+                        : [],
+                    }))
+                  }
+                />
+                {uploading && (
+                  <p className="text-xs text-muted-foreground">Uploading to Supabase Storage…</p>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="sm:col-span-2 grid sm:grid-cols-3 gap-4 pt-2 border-t border-border">

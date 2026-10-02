@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, SlidersHorizontal, X } from 'lucide-react';
 import { ProductGrid } from '@/components/product/ProductGrid';
-import { categories, getProductsByCategory, products } from '@/data/products';
+import { useCatalog, selectByCategory } from '@/lib/catalog';
 import { Category as CategoryType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,10 +16,15 @@ const CategoryPage: React.FC = () => {
   const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
   const [priceRange, setPriceRange] = React.useState<[number, number]>([0, 50000]);
 
-  const category = categories.find(c => c.id === categoryId);
-  const categoryProducts = categoryId 
-    ? getProductsByCategory(categoryId as CategoryType)
-    : products;
+  // Live catalogue: reads the `products` table so anything the admin adds,
+  // edits, hides or deletes shows here on refresh (falls back to the static
+  // bundle while the table is empty).
+  const { products: liveProducts, categories: liveCategories } = useCatalog();
+
+  const category = liveCategories.find(c => c.id === categoryId);
+  const categoryProducts = categoryId
+    ? selectByCategory(liveProducts, categoryId as CategoryType)
+    : liveProducts;
 
   // Get unique sizes and colors from products
   const allSizes = [...new Set(categoryProducts.flatMap(p => p.sizes))];

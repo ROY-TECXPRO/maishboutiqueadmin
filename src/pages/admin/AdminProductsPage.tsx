@@ -16,6 +16,7 @@ import {
   type ProductFormState,
 } from './ProductFormDialog';
 import { RoleBadge } from '@/components/auth/RoleBadge';
+import { useInvalidateCatalog } from '@/lib/catalog';
 import type { ProductRecord } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Save, LogOut, Search, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Save, LogOut, Search, Plus, Pencil, Trash2, RefreshCw, PackageX, ImageOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ interface EditableRowState {
 export default function AdminProductsPage() {
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
+  const invalidateCatalog = useInvalidateCatalog();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [edits, setEdits] = useState<Record<string, EditableRowState>>({});
@@ -96,6 +98,7 @@ export default function AdminProductsPage() {
       setProductActive(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      invalidateCatalog();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -114,6 +117,7 @@ export default function AdminProductsPage() {
       is_active: p.is_active,
       is_new: p.is_new,
       is_sale: p.is_sale,
+      images: p.images ?? [],
     };
   }
 
@@ -151,6 +155,7 @@ export default function AdminProductsPage() {
         is_active: form.is_active,
         is_new: form.is_new,
         is_sale: form.is_sale,
+        images: form.images,
       };
 
       if (id) {
@@ -161,6 +166,7 @@ export default function AdminProductsPage() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      invalidateCatalog();
       toast.success(variables.id ? 'Product updated' : 'Product added');
       setFormOpen(false);
       setEditingId(null);
@@ -173,12 +179,45 @@ export default function AdminProductsPage() {
     mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      invalidateCatalog();
       toast.success('Product deleted');
       setDeleteTarget(null);
     },
     onError: (err: Error) => toast.error(err.message),
     onSettled: () => setDeleting(false),
   });
+
+  /** Quick "out of stock" — sets stock to 0 (stock stays editable inline). */
+  const outOfStockMutation = useMutation({
+    mutationFn: (id: string) => updateProductPriceStock({ id, stock: 0 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      invalidateCatalog();
+      toast.success('Marked as out of stock');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  /**
+   * Re-reads the admin table AND the storefront catalogue cache, so the
+   * changes are visible on the website without a full page reload.
+   */
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-categories'] }),
+        queryClient.invalidateQueries({ queryKey: ['catalog'] }),
+      ]);
+      await productsQuery.refetch();
+      toast.success('Refreshed — showing the latest data');
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   function getEditState(p: ProductRecord): EditableRowState {
     return (
@@ -276,6 +315,10 @@ export default function AdminProductsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? 'h-4 w-4 mr-2 animate-spin' : 'h-4 w-4 mr-2'} />
+            Refresh
+          </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Add Product
@@ -352,7 +395,27 @@ export default function AdminProductsPage() {
                 const dirty = isDirty(p);
                 return (
                   <TableRow key={p.id} className={!p.is_active ? 'opacity-50' : undefined}>
-                    <TableCell className="font-medium max-w-xs truncate">{p.name}</TableCell>
+                    <TableCell className="font-medium max-w-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="h-9 w-9 shrink-0 overflow-hidden rounded border border-border bg-muted/50 flex items-center justify-center">
+                          {p.images?.[0]?.src ? (
+                            <img
+                              src={p.images[0].src}
+                              alt={p.images[0].alt}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <ImageOff className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </span>
+                        <span className="truncate">
+                          {p.name}
+                          {p.stock === 0 && (
+                            <span className="ml-1.5 text-xs font-normal text-destructive">out of stock</span>
+                          )}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-xs">{p.sku}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-normal">
@@ -411,6 +474,16 @@ export default function AdminProductsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={p.stock === 0 || outOfStockMutation.isPending}
+                          onClick={() => outOfStockMutation.mutate(p.id)}
+                          title="Mark out of stock"
+                          aria-label={`Mark ${p.name} out of stock`}
+                        >
+                          <PackageX className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
