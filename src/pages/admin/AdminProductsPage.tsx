@@ -30,7 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Save, LogOut, Search, Plus, Pencil, Trash2, RefreshCw, PackageX, ImageOff } from 'lucide-react';
+import {
+  Loader2, Save, LogOut, Search, Plus, Pencil, Trash2, RefreshCw, PackageX, ImageOff,
+  LayoutGrid, ListTree, Check,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +55,8 @@ export default function AdminProductsPage() {
   const invalidateCatalog = useInvalidateCatalog();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  /** 'categories' shows every category on the website; 'products' shows items. */
+  const [section, setSection] = useState<'categories' | 'products'>('categories');
   const [edits, setEdits] = useState<Record<string, EditableRowState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -79,6 +84,16 @@ export default function AdminProductsPage() {
     for (const c of categoriesQuery.data ?? []) map.set(c.id, c.name);
     return map;
   }, [categoriesQuery.data]);
+
+  /** How many products sit in each category, for the category cards. */
+  const productCountByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of productsQuery.data ?? []) {
+      if (!p.category_id) continue;
+      counts.set(p.category_id, (counts.get(p.category_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [productsQuery.data]);
 
   const filteredProducts = useMemo(() => {
     const all = productsQuery.data ?? [];
@@ -308,7 +323,9 @@ export default function AdminProductsPage() {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">Product Management</h1>
+          <h1 className="text-2xl font-semibold">
+            {section === 'categories' ? 'Category Management' : 'Product Management'}
+          </h1>
           <div className="flex flex-wrap items-center gap-2">
             <RoleBadge verbose />
             <span className="text-sm text-muted-foreground">{user?.email}</span>
@@ -330,6 +347,100 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
+      {/* ---- Section switcher: Categories -> Products ---- */}
+      <div className="flex gap-2 border-b">
+        <button
+          type="button"
+          onClick={() => setSection('categories')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            section === 'categories'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <LayoutGrid className="h-4 w-4" />
+          Categories
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">
+            {categoriesQuery.data?.length ?? 0}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setSection('products')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            section === 'products'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ListTree className="h-4 w-4" />
+          Products
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">
+            {productsQuery.data?.length ?? 0}
+          </span>
+        </button>
+      </div>
+
+      {/* ---- All website categories; click one to see its items ---- */}
+      {section === 'categories' && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Every category on your website. Select one to view and manage its products.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {(categoriesQuery.data ?? []).map((c) => {
+              const count = productCountByCategory.get(c.id) ?? 0;
+              const selected = categoryFilter === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setCategoryFilter(c.id);
+                    setSection('products');
+                  }}
+                  className={`group overflow-hidden rounded-lg border text-left transition-all ${
+                    selected
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border hover:border-primary/50 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="h-24 w-full overflow-hidden bg-muted/40">
+                    {c.image ? (
+                      <img
+                        src={c.image}
+                        alt={c.name}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <ImageOff className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{c.name}</span>
+                      {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {count} {count === 1 ? 'product' : 'products'}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {(categoriesQuery.data ?? []).length === 0 && !categoriesQuery.isLoading && (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No categories found.
+            </div>
+          )}
+        </div>
+      )}
+
+      {section === 'products' && (
+      <>
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -352,6 +463,18 @@ export default function AdminProductsPage() {
             </option>
           ))}
         </select>
+        {categoryFilter !== 'all' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCategoryFilter('all');
+              setSection('categories');
+            }}
+          >
+            Back to all categories
+          </Button>
+        )}
         {!isLoading && !isError && (
           <span className="text-sm text-muted-foreground">
             {filteredProducts.length} of {productsQuery.data?.length ?? 0} products
@@ -516,6 +639,8 @@ export default function AdminProductsPage() {
             </TableBody>
           </Table>
         </div>
+      )}
+      </>
       )}
 
       {/* ---- Add / Edit product dialog ---- */}
