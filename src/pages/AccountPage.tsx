@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Heart, ShoppingBag, MapPin, CreditCard, Bell, HelpCircle, LogOut, ChevronRight, Moon, Sun, Download, Mail, Phone, Edit2, Save, X } from 'lucide-react';
+import { User, Heart, ShoppingBag, MapPin, CreditCard, Bell, HelpCircle, LogOut, ChevronRight, Moon, Sun, Download, Mail, Phone, Edit2, Save, X, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
@@ -9,13 +9,14 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AuthModal } from '@/components/auth/AuthModal';
+import { RoleBadge } from '@/components/auth/RoleBadge';
 import { toast } from 'sonner';
 
 const AccountPage: React.FC = () => {
   const { itemCount } = useCart();
   const { items: wishlistItems } = useWishlist();
   const { isInstallable, isInstalled, installApp } = usePWA();
-  const { user, signOut, updateProfile, refreshUser, loading } = useAuth();
+  const { user, signOut, updateProfile, refreshUser, loading, isStaff } = useAuth();
   const [isDark, setIsDark] = useState(
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   );
@@ -197,6 +198,18 @@ const AccountPage: React.FC = () => {
                       <p className="text-muted-foreground text-sm flex items-center gap-1">
                         <Phone className="w-3 h-3" /> {user.phone}
                       </p>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <RoleBadge verbose />
+                    {isStaff && (
+                      <Link
+                        to="/admin/products"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Open Admin Dashboard
+                      </Link>
                     )}
                   </div>
                 </>

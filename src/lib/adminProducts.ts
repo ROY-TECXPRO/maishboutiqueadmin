@@ -53,3 +53,96 @@ export async function setProductActive(id: string, isActive: boolean): Promise<v
 
   if (error) throw new Error(error.message);
 }
+
+/* ============================================================
+ * Full admin CRUD (add / edit / delete)
+ * RLS still enforces that only profiles.role IN ('admin','staff')
+ * can perform these — a customer calling them gets an RLS error.
+ * ============================================================ */
+
+export interface ProductInput {
+  name: string;
+  sku: string;
+  slug: string;
+  price: number;
+  original_price?: number | null;
+  description?: string | null;
+  category_id?: string | null;
+  gender?: string | null;
+  stock?: number;
+  is_new?: boolean;
+  is_sale?: boolean;
+  is_active?: boolean;
+  sizes?: string[];
+}
+
+/** "Nike Air Zoom" -> "nike-air-zoom" (used to auto-fill the unique slug). */
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+export async function createProduct(input: ProductInput): Promise<ProductRecord> {
+  const { data, error } = await supabase
+    .from('products')
+    .insert({ ...input, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as ProductRecord;
+}
+
+export async function updateProduct(id: string, patch: Partial<ProductInput>): Promise<void> {
+  const { error } = await supabase
+    .from('products')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+
+  if (error) throw new Error(error.message);
+}
+
+export interface CategoryInput {
+  name: string;
+  slug: string;
+  short_name?: string | null;
+  description?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export async function createCategory(input: CategoryInput): Promise<CategoryRecord> {
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({ ...input, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as CategoryRecord;
+}
+
+export async function updateCategory(id: string, patch: Partial<CategoryInput>): Promise<void> {
+  const { error } = await supabase
+    .from('categories')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+
+  if (error) throw new Error(error.message);
+}

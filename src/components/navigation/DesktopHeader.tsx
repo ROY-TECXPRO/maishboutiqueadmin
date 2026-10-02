@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, Heart, Menu, X, User, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Search, ShoppingBag, Heart, Menu, X, User, Sun, Moon, ChevronDown, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { useAuth } from '@/context/AuthContext';
+import { RoleBadge } from '@/components/auth/RoleBadge';
 import { categories } from '@/data/products';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -49,6 +51,7 @@ export const DesktopHeader: React.FC = () => {
   const showWorldCupBadge = nowTs < WORLD_CUP_FINAL_DEADLINE;
   const { itemCount } = useCart();
   const { items: wishlistItems } = useWishlist();
+  const { user, isStaff } = useAuth();
   const navigate = useNavigate();
 
   const toggleTheme = () => {
@@ -272,6 +275,26 @@ export const DesktopHeader: React.FC = () => {
                 )}
               </Link>
 
+              {user && (
+                <Link
+                  to="/account"
+                  className="hidden md:flex touch-target items-center justify-center rounded-lg px-1 py-2"
+                  aria-label={`Logged in as ${isStaff ? 'staff' : 'customer'}`}
+                >
+                  <RoleBadge className="hidden xl:inline-flex" />
+                </Link>
+              )}
+
+              {isStaff && (
+                <Link
+                  to="/admin/products"
+                  className="hidden md:flex touch-target items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden lg:inline">Admin Dashboard</span>
+                </Link>
+              )}
+
               <Link
                 to="/account"
                 className="hidden md:flex touch-target items-center justify-center hover:bg-muted rounded-lg p-2"
@@ -326,6 +349,19 @@ export const DesktopHeader: React.FC = () => {
               </nav>
 
               <div className="border-t border-border mt-4 pt-4 space-y-2">
+                <div className="px-1 pb-2">
+                  <RoleBadge verbose />
+                </div>
+                {isStaff && (
+                  <Link
+                    to="/admin/products"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-emerald-600 font-medium text-white"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    Admin Dashboard
+                  </Link>
+                )}
                 <Link
                   to="/sale"
                   className="flex items-center gap-3 p-3 rounded-lg bg-sale/10 text-sale font-medium"

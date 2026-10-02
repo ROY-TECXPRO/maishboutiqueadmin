@@ -6,7 +6,16 @@ import {
   fetchCategories,
   updateProductPriceStock,
   setProductActive,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 } from '@/lib/adminProducts';
+import {
+  ProductFormDialog,
+  emptyProductForm,
+  type ProductFormState,
+} from './ProductFormDialog';
+import { RoleBadge } from '@/components/auth/RoleBadge';
 import type { ProductRecord } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -20,7 +29,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Save, LogOut, Search } from 'lucide-react';
+import { Loader2, Save, LogOut, Search, Plus, Pencil, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 interface EditableRowState {
@@ -36,6 +52,15 @@ export default function AdminProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [edits, setEdits] = useState<Record<string, EditableRowState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  // ---- Add / Edit / Delete dialog state ----
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [formInitial, setFormInitial] = useState<ProductFormState | undefined>(undefined);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formSaving, setFormSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ProductRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const productsQuery = useQuery({
     queryKey: ['admin-products'],
@@ -73,6 +98,86 @@ export default function AdminProductsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+
+  function toFormState(p: ProductRecord): ProductFormState {
+    return {
+      name: p.name,
+      sku: p.sku,
+      slug: p.slug,
+      price: String(p.price),
+      original_price: p.original_price != null ? String(p.original_price) : '',
+      stock: String(p.stock),
+      category_id: p.category_id ?? '',
+      gender: p.gender ?? '',
+      description: p.description ?? '',
+      is_active: p.is_active,
+      is_new: p.is_new,
+      is_sale: p.is_sale,
+    };
+  }
+
+  function openCreate() {
+    setFormMode('create');
+    setFormInitial(undefined);
+    setEditingId(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(p: ProductRecord) {
+    setFormMode('edit');
+    setFormInitial(toFormState(p));
+    setEditingId(p.id);
+    setFormOpen(true);
+  }
+
+  function submitForm(form: ProductFormState) {
+    setFormSaving(true);
+    saveProductMutation.mutate({ id: editingId, form });
+  }
+
+  const saveProductMutation = useMutation({
+    mutationFn: async ({ id, form }: { id: string | null; form: ProductFormState }) => {
+      const payload = {
+        name: form.name.trim(),
+        sku: form.sku.trim(),
+        slug: form.slug.trim(),
+        price: Number(form.price),
+        original_price: form.original_price.trim() === '' ? null : Number(form.original_price),
+        stock: Number(form.stock),
+        category_id: form.category_id || null,
+        gender: form.gender || null,
+        description: form.description.trim() || null,
+        is_active: form.is_active,
+        is_new: form.is_new,
+        is_sale: form.is_sale,
+      };
+
+      if (id) {
+        await updateProduct(id, payload);
+      } else {
+        await createProduct(payload);
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      toast.success(variables.id ? 'Product updated' : 'Product added');
+      setFormOpen(false);
+      setEditingId(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+    onSettled: () => setFormSaving(false),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      toast.success('Product deleted');
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+    onSettled: () => setDeleting(false),
   });
 
   function getEditState(p: ProductRecord): EditableRowState {
@@ -163,16 +268,23 @@ export default function AdminProductsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="space-y-2">
           <h1 className="text-2xl font-semibold">Product Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Signed in as {user?.email} ({user?.role})
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <RoleBadge verbose />
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={signOut}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
+          <Button variant="outline" size="sm" onClick={signOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
@@ -231,6 +343,7 @@ export default function AdminProductsPage() {
                 <TableHead className="w-24">Stock</TableHead>
                 <TableHead className="w-20">Active</TableHead>
                 <TableHead className="w-24 text-right">Save</TableHead>
+                <TableHead className="w-28 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -296,13 +409,34 @@ export default function AdminProductsPage() {
                         )}
                       </Button>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEdit(p)}
+                          aria-label={`Edit ${p.name}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDeleteTarget(p)}
+                          aria-label={`Delete ${p.name}`}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
               {filteredProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    No products match your search.
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    No products yet. Use <strong>Add Product</strong> to create your first one.
                   </TableCell>
                 </TableRow>
               )}
@@ -310,6 +444,54 @@ export default function AdminProductsPage() {
           </Table>
         </div>
       )}
+
+      {/* ---- Add / Edit product dialog ---- */}
+      <ProductFormDialog
+        open={formOpen}
+        mode={formMode}
+        title={formMode === 'create' ? 'Add Product' : 'Edit Product'}
+        initial={formInitial}
+        categories={categoriesQuery.data ?? []}
+        saving={formSaving}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+        }}
+        onSubmit={submitForm}
+      />
+
+      {/* ---- Delete confirmation ---- */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(next) => (!next ? setDeleteTarget(null) : undefined)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete product?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{deleteTarget?.name}</span> will be
+            permanently removed. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
