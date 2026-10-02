@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:products": "tsx scripts/migrate-products.ts",
+    "seed:generate": "tsx scripts/generate-seed-sql.ts",
+    "seed:apply": "tsx scripts/apply-seed.ts",
     "supabase": "supabase",
     "db:push": "supabase db push",
     "db:pull": "supabase db pull",
