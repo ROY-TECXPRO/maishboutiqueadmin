@@ -1,3 +1,12 @@
+-- ============================================================
+-- !!! SUPERSEDED - DO NOT RUN THIS FILE !!!
+-- Replaced by: supabase/migrations/20261002000000_init_maish_schema.sql
+--              (one-paste copy: supabase-consolidated-setup.sql)
+-- Running this legacy file can REINTRODUCE insecure RLS policies that the
+-- consolidated schema deliberately removes. Kept for historical reference only.
+-- ============================================================
+
+
 -- ============================================
 -- COMPLETE ORDERS SCHEMA FOR MAISH FASHION SHOP
 -- Run this entire SQL in Supabase SQL Editor

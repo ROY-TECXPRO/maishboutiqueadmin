@@ -1,47 +1,34 @@
 -- ============================================================
--- !!! SUPERSEDED - DO NOT RUN THIS FILE !!!
--- Replaced by: supabase/migrations/20261002000000_init_maish_schema.sql
---              (one-paste copy: supabase-consolidated-setup.sql)
--- NOTE: this file also claimed to be idempotent, which was WRONG - its
--- `create policy` statements were not guarded, so a second run errored.
--- The consolidated schema fixes that. Kept for historical reference only.
--- ============================================================
-
-
--- ============================================================
--- MAISH FASHION BOUTIQUE — MASTER SCHEMA (fresh project)
--- Run this ENTIRE file once, in order, in the new project's
--- SQL Editor (project ref: xttlmtwoenntqbrhkkox).
--- Safe to re-run: every statement is idempotent (IF NOT EXISTS /
--- OR REPLACE / ON CONFLICT DO NOTHING).
+-- MAISH FASHION BOUTIQUE — CONSOLIDATED BASELINE SCHEMA
+-- Project ref: xttlmtwoenntqbrhkkox
 --
--- This replaces, in one consolidated and corrected file:
---   supabase-users-schema.sql
---   supabase-full-schema.sql
---   supabase-orders-schema.sql
---   supabase-orders-schema-updated.sql
---   supabase-newsletter-table.sql
---   supabase-product-system.sql
+-- Single source of truth for the database. Consolidates and
+-- corrects these legacy files:
+--   supabase-users-schema.sql          supabase-full-schema.sql
+--   supabase-orders-schema.sql         supabase-orders-schema-updated.sql
+--   supabase-newsletter-table.sql      supabase-product-system.sql
 --
--- Two real bugs found in the OLD project's schema are fixed here,
--- not carried forward:
---   1. Orders RLS: an old policy let ANY authenticated user read
---      ALL customers' orders (auth.role() = 'authenticated' was
---      OR'd into the SELECT policy). Fixed: strict ownership,
---      with a non-recursive staff/admin override.
---   2. Profiles RLS: an admin-check policy that queried `profiles`
---      from within a policy ON `profiles` itself — the classic
---      Postgres "infinite recursion detected in policy" trap.
---      Fixed: role checks go through SECURITY DEFINER helper
---      functions (is_staff / is_admin) that bypass RLS internally,
---      so they never recurse regardless of which table calls them.
+-- Two REAL security bugs in the legacy files are fixed here:
+--   1. ORDERS RLS let ANY authenticated user read ALL customers'
+--      orders:  using (user_id = auth.uid() or auth.role()='authenticated')
+--      Fixed -> strict ownership + non-recursive staff override.
+--   2. PROFILES RLS queried `profiles` from inside a policy ON
+--      `profiles` -> Postgres "infinite recursion detected in
+--      policy". Fixed -> SECURITY DEFINER helpers (is_staff /
+--      is_admin) that bypass RLS internally.
+--
+-- IDEMPOTENT: unlike the old master file, every policy is
+-- dropped-if-exists before being recreated, and legacy policy
+-- names are swept (they would otherwise survive and, because
+-- Postgres RLS policies are OR-ed together, silently re-open
+-- the holes above).
 -- ============================================================
 
 create extension if not exists pgcrypto;
 create extension if not exists pg_trgm;
 
 -- ============================================================
--- 1. PROFILES
+-- 1. PROFILES (+ role helpers, signup trigger, RLS)
 -- ============================================================
 create table if not exists public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
@@ -57,10 +44,26 @@ create table if not exists public.profiles (
   updated_at  timestamptz default now()
 );
 
+-- Defensive: the oldest version of `profiles` had no `role` column.
+alter table public.profiles
+  add column if not exists role text not null default 'customer';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'profiles_role_check'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint profiles_role_check check (role in ('admin','staff','customer'));
+  end if;
+end $$;
+
 create index if not exists idx_profiles_email on public.profiles(email);
 create index if not exists idx_profiles_role on public.profiles(role);
 
--- ---- Role-check helper functions (SECURITY DEFINER avoids RLS recursion) ----
+-- ---- Role helpers (SECURITY DEFINER avoids RLS recursion) ----
 create or replace function public.is_staff(uid uuid default auth.uid())
 returns boolean
 language sql
@@ -87,7 +90,7 @@ as $$
   );
 $$;
 
--- ---- Auto-create a profile row on signup (the old app skipped this) ----
+-- ---- Auto-create a profile row on signup ----
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -112,7 +115,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- ---- updated_at trigger (shared by several tables below) ----
+-- ---- Shared updated_at trigger ----
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -131,16 +134,26 @@ create trigger trg_profiles_updated_at
 -- ---- RLS: profiles ----
 alter table public.profiles enable row level security;
 
+-- Sweep legacy profile policy names first.
+drop policy if exists "Users can view their own profile"   on public.profiles;
+drop policy if exists "Users can update their own profile" on public.profiles;
+drop policy if exists "Users can insert their own profile" on public.profiles;
+drop policy if exists "Staff admin view all profiles"      on public.profiles;
+drop policy if exists "Admin update all profiles"          on public.profiles;
+
+drop policy if exists "Users manage own profile" on public.profiles;
 create policy "Users manage own profile"
   on public.profiles for all
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
+drop policy if exists "Staff admin view all profiles" on public.profiles;
 create policy "Staff admin view all profiles"
   on public.profiles for select
   to authenticated
   using (public.is_staff());
 
+drop policy if exists "Admin update all profiles" on public.profiles;
 create policy "Admin update all profiles"
   on public.profiles for update
   to authenticated
@@ -172,6 +185,12 @@ create trigger trg_addresses_updated_at
 
 alter table public.addresses enable row level security;
 
+drop policy if exists "Users can view their own addresses"   on public.addresses;
+drop policy if exists "Users can insert their own addresses" on public.addresses;
+drop policy if exists "Users can update their own addresses" on public.addresses;
+drop policy if exists "Users can delete their own addresses" on public.addresses;
+
+drop policy if exists "Users manage own addresses" on public.addresses;
 create policy "Users manage own addresses"
   on public.addresses for all
   using (auth.uid() = user_id)
@@ -218,10 +237,10 @@ create table if not exists public.order_items (
   image          text
 );
 
-create index if not exists idx_orders_user_id on public.orders(user_id);
-create index if not exists idx_orders_phone on public.orders(customer_phone);
-create index if not exists idx_orders_status on public.orders(status);
-create index if not exists idx_orders_created on public.orders(created_at desc);
+create index if not exists idx_orders_user_id  on public.orders(user_id);
+create index if not exists idx_orders_phone    on public.orders(customer_phone);
+create index if not exists idx_orders_status   on public.orders(status);
+create index if not exists idx_orders_created  on public.orders(created_at desc);
 create index if not exists idx_order_items_order_id on public.order_items(order_id);
 
 drop trigger if exists trg_orders_updated_at on public.orders;
@@ -229,29 +248,51 @@ create trigger trg_orders_updated_at
   before update on public.orders
   for each row execute function public.set_updated_at();
 
-alter table public.orders enable row level security;
+alter table public.orders      enable row level security;
 alter table public.order_items enable row level security;
 
--- Guest checkout is intentional (matches original design): anyone can create an order.
+-- Sweep the legacy policies. These MUST go: Postgres OR-s permissive
+-- policies together, so leaving e.g. "User View Own"
+-- (auth.role() = 'authenticated') in place would keep exposing every
+-- customer's order to every logged-in user.
+drop policy if exists "Public Insert"        on public.orders;
+drop policy if exists "User View Own"        on public.orders;
+drop policy if exists "User Update Own"      on public.orders;
+drop policy if exists "Users can view their own orders"   on public.orders;
+drop policy if exists "Users can insert their own orders" on public.orders;
+drop policy if exists "Users can update their own orders" on public.orders;
+drop policy if exists "Public insert orders"    on public.orders;
+drop policy if exists "Users view own orders"   on public.orders;
+drop policy if exists "Users update own orders" on public.orders;
+drop policy if exists "Public Insert Items"       on public.order_items;
+drop policy if exists "User View Own Items"       on public.order_items;
+drop policy if exists "Public insert order items" on public.order_items;
+drop policy if exists "Users view own order items" on public.order_items;
+
+-- Guest checkout is intentional (matches the original design).
+drop policy if exists "Public insert orders" on public.orders;
 create policy "Public insert orders"
   on public.orders for insert
   with check (true);
 
--- Strict ownership — NOT "or authenticated". This is the fix for the
--- cross-customer order visibility bug found in the old schema.
+-- FIX #1: strict ownership, never "or authenticated".
+drop policy if exists "Users view own orders" on public.orders;
 create policy "Users view own orders"
   on public.orders for select
   using (user_id = auth.uid() or public.is_staff());
 
+drop policy if exists "Users update own orders" on public.orders;
 create policy "Users update own orders"
   on public.orders for update
   using (user_id = auth.uid() or public.is_staff())
   with check (user_id = auth.uid() or public.is_staff());
 
+drop policy if exists "Public insert order items" on public.order_items;
 create policy "Public insert order items"
   on public.order_items for insert
   with check (true);
 
+drop policy if exists "Users view own order items" on public.order_items;
 create policy "Users view own order items"
   on public.order_items for select
   using (
@@ -272,15 +313,22 @@ create table if not exists public.newsletter_subscribers (
   status          text default 'pending' check (status in ('pending','subscribed','unsubscribed'))
 );
 
-create index if not exists idx_newsletter_email on public.newsletter_subscribers(email);
+create index if not exists idx_newsletter_email  on public.newsletter_subscribers(email);
 create index if not exists idx_newsletter_status on public.newsletter_subscribers(status);
 
 alter table public.newsletter_subscribers enable row level security;
 
+drop policy if exists "Allow public insert for newsletter"  on public.newsletter_subscribers;
+drop policy if exists "Allow authenticated read for newsletter" on public.newsletter_subscribers;
+drop policy if exists "Public subscribe"      on public.newsletter_subscribers;
+drop policy if exists "Staff read subscribers" on public.newsletter_subscribers;
+
+drop policy if exists "Public subscribe" on public.newsletter_subscribers;
 create policy "Public subscribe"
   on public.newsletter_subscribers for insert
   with check (true);
 
+drop policy if exists "Staff read subscribers" on public.newsletter_subscribers;
 create policy "Staff read subscribers"
   on public.newsletter_subscribers for select
   to authenticated
@@ -343,7 +391,7 @@ create table if not exists public.inventory_log (
   created_at  timestamptz default now()
 );
 
-drop trigger if exists trg_products_updated_at on public.products;
+drop trigger if exists trg_products_updated_at   on public.products;
 create trigger trg_products_updated_at
   before update on public.products
   for each row execute function public.set_updated_at();
@@ -353,20 +401,22 @@ create trigger trg_categories_updated_at
   before update on public.categories
   for each row execute function public.set_updated_at();
 
-create index if not exists idx_categories_slug on public.categories(slug);
-create index if not exists idx_categories_is_active on public.categories(is_active);
+create index if not exists idx_categories_slug       on public.categories(slug);
+create index if not exists idx_categories_is_active  on public.categories(is_active);
 create index if not exists idx_categories_sort_order on public.categories(sort_order);
 
-create index if not exists idx_products_sku on public.products(sku);
-create index if not exists idx_products_slug on public.products(slug);
+create index if not exists idx_products_sku         on public.products(sku);
+create index if not exists idx_products_slug        on public.products(slug);
 create index if not exists idx_products_category_id on public.products(category_id);
-create index if not exists idx_products_is_active on public.products(is_active);
-create index if not exists idx_products_is_new on public.products(is_new);
-create index if not exists idx_products_is_sale on public.products(is_sale);
-create index if not exists idx_products_gender on public.products(gender);
-create index if not exists idx_products_price on public.products(price);
+create index if not exists idx_products_is_active   on public.products(is_active);
+create index if not exists idx_products_is_new      on public.products(is_new);
+create index if not exists idx_products_is_sale     on public.products(is_sale);
+create index if not exists idx_products_gender      on public.products(gender);
+create index if not exists idx_products_price       on public.products(price);
+
+-- Trigram + array indexes (pg_trgm enables fast fuzzy name search).
 create index if not exists idx_products_name_trgm on public.products using gin (name gin_trgm_ops);
-create index if not exists idx_products_tags_gin on public.products using gin (tags);
+create index if not exists idx_products_tags_gin  on public.products using gin (tags);
 create index if not exists idx_products_sizes_gin on public.products using gin (sizes);
 
 create index if not exists idx_inventory_log_product_id on public.inventory_log(product_id);
@@ -375,6 +425,11 @@ create index if not exists idx_inventory_log_created_at on public.inventory_log(
 
 -- ---- RLS: categories ----
 alter table public.categories enable row level security;
+
+drop policy if exists "Public read active categories" on public.categories;
+drop policy if exists "Staff manage categories"       on public.categories;
+drop policy if exists "Staff update categories"       on public.categories;
+drop policy if exists "Admin delete categories"       on public.categories;
 
 create policy "Public read active categories"
   on public.categories for select
@@ -399,6 +454,11 @@ create policy "Admin delete categories"
 -- ---- RLS: products ----
 alter table public.products enable row level security;
 
+drop policy if exists "Public read active products" on public.products;
+drop policy if exists "Staff insert products"       on public.products;
+drop policy if exists "Staff update products"       on public.products;
+drop policy if exists "Admin delete products"       on public.products;
+
 create policy "Public read active products"
   on public.products for select
   using (is_active = true or public.is_staff());
@@ -422,6 +482,9 @@ create policy "Admin delete products"
 -- ---- RLS: inventory_log (append-only audit trail) ----
 alter table public.inventory_log enable row level security;
 
+drop policy if exists "Staff read inventory log"   on public.inventory_log;
+drop policy if exists "Staff insert inventory log" on public.inventory_log;
+
 create policy "Staff read inventory log"
   on public.inventory_log for select
   to authenticated
@@ -435,9 +498,19 @@ create policy "Staff insert inventory log"
 -- ============================================================
 -- 6. STORAGE — PRODUCT IMAGES BUCKET
 -- ============================================================
+-- Public bucket so product images can be served by CDN URL.
 insert into storage.buckets (id, name, public)
 values ('maish-product-images', 'maish-product-images', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = true;
+
+-- Sweep both naming variants used by the legacy scripts.
+drop policy if exists "Public read product images"          on storage.objects;
+drop policy if exists "Staff insert product images"         on storage.objects;
+drop policy if exists "Staff update product images"         on storage.objects;
+drop policy if exists "Staff delete product images"         on storage.objects;
+drop policy if exists "Staff admin insert product images"   on storage.objects;
+drop policy if exists "Staff admin update product images"   on storage.objects;
+drop policy if exists "Staff admin delete product images"   on storage.objects;
 
 create policy "Public read product images"
   on storage.objects for select
@@ -460,7 +533,7 @@ create policy "Staff delete product images"
   using (bucket_id = 'maish-product-images' and public.is_staff());
 
 -- ============================================================
--- 7. REALTIME (guarded so this is safe to re-run)
+-- 7. REALTIME (guarded — safe to re-run)
 -- ============================================================
 do $$
 declare
@@ -478,5 +551,5 @@ begin
 end $$;
 
 -- ============================================================
--- END OF MASTER SCHEMA
+-- END OF CONSOLIDATED SCHEMA
 -- ============================================================
