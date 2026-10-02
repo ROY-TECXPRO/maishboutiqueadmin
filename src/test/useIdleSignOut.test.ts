@@ -65,15 +65,55 @@ describe('useIdleSignOut', () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
-  it('ignores mousemove so a drifting mouse cannot keep an idle session alive', () => {
+  it('keeps the session alive while the mouse keeps moving', () => {
     renderHook(() => useIdleSignOut(true));
 
-    act(() => { vi.advanceTimersByTime(IDLE_TIMEOUT_MS - 1000); });
-    // Mousemove is intentionally not an activity event.
+    // A mouse movement every 4 minutes across 20 minutes.
+    for (let i = 0; i < 5; i += 1) {
+      act(() => { vi.advanceTimersByTime(4 * 60 * 1000); });
+      act(() => { window.dispatchEvent(new Event('mousemove')); });
+      runTimers();
+    }
+
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it('signs out when the mouse stops moving for the full timeout', () => {
+    renderHook(() => useIdleSignOut(true));
+
+    // Move the mouse once, which resets the countdown.
+    act(() => { vi.advanceTimersByTime(4 * 60 * 1000); });
     act(() => { window.dispatchEvent(new Event('mousemove')); });
-    act(() => { vi.advanceTimersByTime(1000); });
+    runTimers();
+
+    // The mouse now stays still: no further events at all.
+    act(() => { vi.advanceTimersByTime(IDLE_TIMEOUT_MS - 1); });
+    expect(signOut).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith({ reason: 'idle' });
+  });
+
+  it('signs out immediately when F4 is pressed', () => {
+    renderHook(() => useIdleSignOut(true));
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4' }));
+    });
 
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith({ reason: 'manual' });
+  });
+
+  it('ignores other keys, which must not sign the user out', () => {
+    renderHook(() => useIdleSignOut(true));
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    });
+
+    expect(signOut).not.toHaveBeenCalled();
   });
 
   it('stops the timers on unmount', () => {

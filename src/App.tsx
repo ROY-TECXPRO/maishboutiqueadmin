@@ -10,6 +10,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
+import { RedirectToHomeOnLoad } from "@/components/ui/RedirectToHomeOnLoad";
 import HomePage from "./pages/HomePage";
 import CategoryPage from "./pages/CategoryPage";
 import CategoriesPage from "./pages/CategoriesPage";
@@ -50,6 +51,7 @@ const App = () => (
               <Sonner position="top-center" />
               <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                 <ScrollToTop />
+                <RedirectToHomeOnLoad />
                 <PageLoader />
                 <Routes>
                   {/* Admin routes render outside the storefront Layout (no nav/footer/promo banner) */}
