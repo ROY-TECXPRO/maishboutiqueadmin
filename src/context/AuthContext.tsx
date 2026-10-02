@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useIdleSignOut } from '@/hooks/useIdleSignOut';
 import { toast } from 'sonner';
 
 export type UserRole = 'admin' | 'staff' | 'customer';
@@ -36,7 +37,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signOut: () => Promise<void>;
+  signOut: (options?: { reason?: 'manual' | 'idle' }) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<{ error: Error | null }>;
   checkEmailExists: (email: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
@@ -326,11 +327,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (options?: { reason?: 'manual' | 'idle' }) => {
     try {
       await supabase.auth.signOut();
       setUser(null);
-      toast.success('Signed out successfully');
+
+      if (options?.reason === 'idle') {
+        toast.info('You were signed out after 5 minutes of inactivity. Please sign in again.');
+      } else {
+        toast.success('Signed out successfully');
+      }
     } catch (error) {
       const err = error as Error;
       toast.error(err.message);
@@ -420,9 +426,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isStaff,
       isAdmin,
     }}>
-      {children}
+      {/* Signs the user out after 5 minutes of inactivity. Must live inside
+          the provider so it can call useAuth(). */}
+      <IdleSignOutGate enabled={!!user}>{children}</IdleSignOutGate>
     </AuthContext.Provider>
   );
+};
+
+/** Runs the idle timer for as long as somebody is signed in. */
+const IdleSignOutGate = ({ enabled, children }: { enabled: boolean; children: ReactNode }) => {
+  useIdleSignOut(enabled);
+  return <>{children}</>;
 };
 
 export const useAuth = () => {

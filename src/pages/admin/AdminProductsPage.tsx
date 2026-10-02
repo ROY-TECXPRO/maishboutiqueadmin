@@ -32,8 +32,9 @@ import {
 } from '@/components/ui/table';
 import {
   Loader2, Save, LogOut, Search, Plus, Pencil, Trash2, RefreshCw, PackageX, ImageOff,
-  LayoutGrid, ListTree, Check,
+  LayoutGrid, ListTree, Check, Home,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -335,6 +336,14 @@ export default function AdminProductsPage() {
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={refreshing ? 'h-4 w-4 mr-2 animate-spin' : 'h-4 w-4 mr-2'} />
             Refresh
+          </Button>
+          {/* Returns to the storefront to see live changes. Navigation only —
+              the session stays active, so the admin remains signed in. */}
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/">
+              <Home className="h-4 w-4 mr-2" />
+              Back to Home
+            </Link>
           </Button>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" />
