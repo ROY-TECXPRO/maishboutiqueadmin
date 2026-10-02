@@ -551,5 +551,39 @@ begin
 end $$;
 
 -- ============================================================
+-- ADMIN ACTIVITY LOG (audit trail)
+--
+-- Records every action taken in the admin dashboard: add, edit, delete,
+-- price/stock changes, activate/deactivate, sign out, terms acceptance.
+-- Staff may record activity; only admins may read it back.
+-- ============================================================
+create table if not exists public.admin_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references auth.users(id) on delete set null,
+  admin_email text,
+  action text not null,
+  entity_type text,
+  entity_id text,
+  entity_label text,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_admin_activity_log_created_at
+  on public.admin_activity_log (created_at desc);
+
+alter table public.admin_activity_log enable row level security;
+
+drop policy if exists "admin_activity_log_staff_insert" on public.admin_activity_log;
+create policy "admin_activity_log_staff_insert" on public.admin_activity_log
+  for insert to authenticated
+  with check (public.is_staff());
+
+drop policy if exists "admin_activity_log_admin_select" on public.admin_activity_log;
+create policy "admin_activity_log_admin_select" on public.admin_activity_log
+  for select to authenticated
+  using (public.is_admin());
+
+-- ============================================================
 -- END OF CONSOLIDATED SCHEMA
 -- ============================================================

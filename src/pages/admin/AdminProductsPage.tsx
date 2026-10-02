@@ -16,7 +16,13 @@ import {
   type ProductFormState,
 } from './ProductFormDialog';
 import { RoleBadge } from '@/components/auth/RoleBadge';
+import {
+  AdminTermsDialog,
+  hasAcceptedAdminTerms,
+} from '@/components/admin/AdminTermsDialog';
 import { useInvalidateCatalog } from '@/lib/catalog';
+import { logAdminActivity } from '@/lib/adminActivity';
+import { AdminActivityLog } from '@/components/admin/AdminActivityLog';
 import type { ProductRecord } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,7 +38,7 @@ import {
 } from '@/components/ui/table';
 import {
   Loader2, Save, LogOut, Search, Plus, Pencil, Trash2, RefreshCw, PackageX, ImageOff,
-  LayoutGrid, ListTree, Check, Home,
+  LayoutGrid, ListTree, Check, Home, ScrollText, History,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -54,10 +60,14 @@ export default function AdminProductsPage() {
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
   const invalidateCatalog = useInvalidateCatalog();
+  /** The terms must be accepted before any admin tooling is usable. */
+  const [termsAccepted, setTermsAccepted] = useState(() => hasAcceptedAdminTerms());
+  /** Lets the admin re-read the terms at any time. */
+  const [termsOpen, setTermsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   /** 'categories' shows every category on the website; 'products' shows items. */
-  const [section, setSection] = useState<'categories' | 'products'>('categories');
+  const [section, setSection] = useState<'categories' | 'products' | 'activity'>('categories');
   const [edits, setEdits] = useState<Record<string, EditableRowState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -112,9 +122,21 @@ export default function AdminProductsPage() {
   const activeToggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       setProductActive(id, isActive),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       invalidateCatalog();
+      const product = (productsQuery.data ?? []).find((p) => p.id === variables.id);
+      void logAdminActivity({
+        action: variables.isActive ? 'product.activate' : 'product.deactivate',
+        entityType: 'product',
+        entityId: variables.id,
+        entityLabel: product?.name,
+        details: {
+          name: product?.name,
+          sku: product?.sku,
+          is_active: variables.isActive,
+        },
+      });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -176,14 +198,29 @@ export default function AdminProductsPage() {
 
       if (id) {
         await updateProduct(id, payload);
-      } else {
-        await createProduct(payload);
+        return { action: 'product.update' as const, id, label: payload.name, payload };
       }
+
+      const created = await createProduct(payload);
+      return { action: 'product.create' as const, id: created.id, label: payload.name, payload };
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       invalidateCatalog();
-      toast.success(variables.id ? 'Product updated' : 'Product added');
+      void logAdminActivity({
+        action: result.action,
+        entityType: 'product',
+        entityId: result.id,
+        entityLabel: result.label,
+        details: {
+          name: result.payload.name,
+          sku: result.payload.sku,
+          price: result.payload.price,
+          stock: result.payload.stock,
+          is_active: result.payload.is_active,
+        },
+      });
+      toast.success(result.action === 'product.create' ? 'Product added' : 'Product updated');
       setFormOpen(false);
       setEditingId(null);
     },
@@ -192,10 +229,17 @@ export default function AdminProductsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteProduct(id),
-    onSuccess: () => {
+    mutationFn: (product: ProductRecord) => deleteProduct(product.id).then(() => product),
+    onSuccess: (product) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       invalidateCatalog();
+      void logAdminActivity({
+        action: 'product.delete',
+        entityType: 'product',
+        entityId: product.id,
+        entityLabel: product.name,
+        details: { name: product.name, sku: product.sku, price: product.price },
+      });
       toast.success('Product deleted');
       setDeleteTarget(null);
     },
@@ -205,10 +249,18 @@ export default function AdminProductsPage() {
 
   /** Quick "out of stock" — sets stock to 0 (stock stays editable inline). */
   const outOfStockMutation = useMutation({
-    mutationFn: (id: string) => updateProductPriceStock({ id, stock: 0 }),
-    onSuccess: () => {
+    mutationFn: (product: ProductRecord) =>
+      updateProductPriceStock({ id: product.id, stock: 0 }).then(() => product),
+    onSuccess: (product) => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       invalidateCatalog();
+      void logAdminActivity({
+        action: 'product.out_of_stock',
+        entityType: 'product',
+        entityId: product.id,
+        entityLabel: product.name,
+        details: { name: product.name, sku: product.sku, old_stock: product.stock, new_stock: 0 },
+      });
       toast.success('Marked as out of stock');
     },
     onError: (err: Error) => toast.error(err.message),
@@ -304,6 +356,20 @@ export default function AdminProductsPage() {
         stock,
       });
       toast.success(`${p.name} updated`);
+      void logAdminActivity({
+        action: 'product.price_stock_update',
+        entityType: 'product',
+        entityId: p.id,
+        entityLabel: p.name,
+        details: {
+          name: p.name,
+          sku: p.sku,
+          old_price: p.price,
+          new_price: price,
+          old_stock: p.stock,
+          new_stock: stock,
+        },
+      });
       setEdits((prev) => {
         const next = { ...prev };
         delete next[p.id];
@@ -320,19 +386,46 @@ export default function AdminProductsPage() {
   const isLoading = productsQuery.isLoading || categoriesQuery.isLoading;
   const isError = productsQuery.isError || categoriesQuery.isError;
 
+  /** Records the sign-out before the session disappears. */
+  async function handleSignOut() {
+    await logAdminActivity({
+      action: 'session.sign_out',
+      entityType: 'session',
+      entityLabel: user?.email ?? null,
+    });
+    await signOut();
+  }
+
   return (
+    <>
+      <AdminTermsDialog open={!termsAccepted} onAccepted={() => setTermsAccepted(true)} />
+      {/* Re-reading the terms: already accepted, so the gate stays closed. */}
+      <AdminTermsDialog open={termsOpen} onAccepted={() => setTermsOpen(false)} />
+
+      {!termsAccepted ? (
+        <div className="flex min-h-screen items-center justify-center px-4">
+          <p className="text-sm text-muted-foreground text-center">
+            Please accept the Admin Terms &amp; Conditions to continue.
+          </p>
+        </div>
+      ) : (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <h1 className="text-2xl font-semibold">
-            {section === 'categories' ? 'Category Management' : 'Product Management'}
+            {section === 'categories'
+              ? 'Category Management'
+              : section === 'activity'
+                ? 'Admin Activity'
+                : 'Product Management'}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <RoleBadge verbose />
-            <span className="text-sm text-muted-foreground">{user?.email}</span>
+            <span className="text-sm text-muted-foreground break-all">{user?.email}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        {/* flex-wrap + w-full on mobile so no button is ever pushed off-screen */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={refreshing ? 'h-4 w-4 mr-2 animate-spin' : 'h-4 w-4 mr-2'} />
             Refresh
@@ -349,7 +442,11 @@ export default function AdminProductsPage() {
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
-          <Button variant="outline" size="sm" onClick={signOut}>
+          <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>
+            <ScrollText className="h-4 w-4 mr-2" />
+            Terms
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleSignOut}>
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
@@ -388,7 +485,22 @@ export default function AdminProductsPage() {
             {productsQuery.data?.length ?? 0}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setSection('activity')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            section === 'activity'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <History className="h-4 w-4" />
+          Activity Log
+        </button>
       </div>
+
+      {/* ---- Audit trail of admin actions ---- */}
+      {section === 'activity' && <AdminActivityLog />}
 
       {/* ---- All website categories; click one to see its items ---- */}
       {section === 'categories' && (
@@ -450,8 +562,8 @@ export default function AdminProductsPage() {
 
       {section === 'products' && (
       <>
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative w-full max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-center">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by name or SKU..."
@@ -461,7 +573,7 @@ export default function AdminProductsPage() {
           />
         </div>
         <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className="h-10 w-full sm:w-auto rounded-md border border-input bg-background px-3 text-sm"
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
@@ -507,7 +619,9 @@ export default function AdminProductsPage() {
 
       {!isLoading && !isError && (
         <div className="rounded-md border">
-          <Table>
+          {/* min-w forces a horizontal scrollbar on narrow screens so every
+              column (and its buttons) can be reached instead of being cut off. */}
+          <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
@@ -610,7 +724,7 @@ export default function AdminProductsPage() {
                           size="sm"
                           variant="outline"
                           disabled={p.stock === 0 || outOfStockMutation.isPending}
-                          onClick={() => outOfStockMutation.mutate(p.id)}
+                          onClick={() => outOfStockMutation.mutate(p)}
                           title="Mark out of stock"
                           aria-label={`Mark ${p.name} out of stock`}
                         >
@@ -690,7 +804,7 @@ export default function AdminProductsPage() {
               onClick={() => {
                 if (!deleteTarget) return;
                 setDeleting(true);
-                deleteMutation.mutate(deleteTarget.id);
+                deleteMutation.mutate(deleteTarget);
               }}
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -700,5 +814,7 @@ export default function AdminProductsPage() {
         </DialogContent>
       </Dialog>
     </div>
+      )}
+    </>
   );
 }
