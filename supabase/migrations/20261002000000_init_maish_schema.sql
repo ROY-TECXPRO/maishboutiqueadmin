@@ -583,11 +583,15 @@ create policy "admin_activity_log_staff_insert" on public.admin_activity_log
 -- table exists. It used to be "any admin"; it is now owner-only.
 
 -- ============================================================
--- MAISH FASHION BOUTIQUE — OWNER-ONLY ACTIVITY LOG
+-- MAISH FASHION BOUTIQUE — OWNER-ONLY ACTIVITY LOG + ROLE LOCKDOWN
 -- Project ref: xttlmtwoenntqbrhkkox
 --
--- 1. Grants admin to maishboutique@gmail.com (the shop account).
--- 2. Narrows admin_activity_log SELECT from "any admin" to the
+-- 1. Closes a privilege-escalation hole: "Users manage own profile"
+--    is "for all" on the caller's own row and RLS cannot restrict
+--    columns, so any customer could set their own profiles.role to
+--    'admin'.
+-- 2. Grants admin to maishboutique@gmail.com (the shop account).
+-- 3. Narrows admin_activity_log SELECT from "any admin" to the
 --    main admin only (roysanga127@gmail.com).
 --
 -- INSERT is deliberately left open to all staff so everyone can
@@ -596,7 +600,37 @@ create policy "admin_activity_log_staff_insert" on public.admin_activity_log
 -- history.
 -- ============================================================
 
--- 1. Promote the shop account to admin -----------------------------
+-- 1. Stop users promoting themselves --------------------------------
+-- A role change is rejected unless the signed-in actor is already an
+-- admin. A trusted direct connection (SQL Editor, service_role,
+-- migrations) has no auth.uid() and passes through, so the promotion
+-- below and ordinary admin tooling keep working.
+create or replace function public.protect_profile_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  if new.role is distinct from old.role and not public.is_admin() then
+    raise exception 'Only an administrator can change a profile role.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_profile_role on public.profiles;
+create trigger trg_protect_profile_role
+  before update on public.profiles
+  for each row execute function public.protect_profile_role();
+
+-- 2. Promote the shop account to admin -----------------------------
 -- The profiles row is keyed by id = auth.users.id, so the auth user
 -- must exist first (sign up once at /admin/login). This inserts the
 -- profile when missing and promotes it when present, so re-running

@@ -575,10 +575,14 @@ create index if not exists idx_admin_activity_log_created_at
 alter table public.admin_activity_log enable row level security;
 
 -- ============================================================
--- OWNER-ONLY ACTIVITY LOG + SECOND ADMIN ACCOUNT
+-- OWNER-ONLY ACTIVITY LOG + ROLE LOCKDOWN
 --
--- 1. Grants admin to maishboutique@gmail.com.
--- 2. Restricts admin_activity_log SELECT to the main admin
+-- 1. Closes a privilege-escalation hole: "Users manage own profile"
+--    above is "for all" on the caller's own row, and RLS cannot
+--    restrict columns, so any customer could set their own
+--    profiles.role to 'admin'. This trigger blocks that.
+-- 2. Grants admin to maishboutique@gmail.com.
+-- 3. Restricts admin_activity_log SELECT to the main admin
 --    (roysanga127@gmail.com) only, instead of every admin.
 --
 -- INSERT stays open to all staff so everyone can still record
@@ -586,6 +590,39 @@ alter table public.admin_activity_log enable row level security;
 -- ============================================================
 
 -- 1. ------------------------------------------------------------
+-- Stop users promoting themselves.
+--
+-- A role change is rejected unless the signed-in actor is already
+-- an admin. A trusted direct connection (SQL Editor, service_role,
+-- migrations) has no auth.uid() and passes through, so the grant
+-- below and ordinary admin tooling keep working.
+-- ------------------------------------------------------------
+create or replace function public.protect_profile_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  if new.role is distinct from old.role and not public.is_admin() then
+    raise exception 'Only an administrator can change a profile role.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_profile_role on public.profiles;
+create trigger trg_protect_profile_role
+  before update on public.profiles
+  for each row execute function public.protect_profile_role();
+
+-- 2. ------------------------------------------------------------
 -- Grant admin to the shop account.
 --
 -- The profile row is keyed by id = auth.users.id, so the user must
