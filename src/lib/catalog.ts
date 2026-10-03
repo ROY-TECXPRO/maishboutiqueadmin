@@ -224,6 +224,8 @@ export function useCatalog() {
     source: query.data?.source ?? 'static',
     isLoading: query.isLoading,
     isError: query.isError,
+    /** True while a background re-read is in flight (e.g. after admin Refresh). */
+    isFetching: query.isFetching,
     /** Re-reads the database — wired to the admin Refresh button. */
     refetch: query.refetch,
   };

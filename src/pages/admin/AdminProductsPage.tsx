@@ -13,6 +13,8 @@ import {
 import {
   ProductFormDialog,
   emptyProductForm,
+  parseColorInput,
+  parseSizeInput,
   type ProductFormState,
 } from './ProductFormDialog';
 import { RoleBadge } from '@/components/auth/RoleBadge';
@@ -155,6 +157,8 @@ export default function AdminProductsPage() {
       is_active: p.is_active,
       is_new: p.is_new,
       is_sale: p.is_sale,
+      sizes: (p.sizes ?? []).join(', '),
+      colors: (p.colors ?? []).map((c) => (c.hex ? `${c.name}|${c.hex}` : c.name)).join(', '),
       images: p.images ?? [],
     };
   }
@@ -194,6 +198,10 @@ export default function AdminProductsPage() {
         is_new: form.is_new,
         is_sale: form.is_sale,
         images: form.images,
+        // Variants are optional; the storefront treats a product with none as
+        // "One Size" / "As supplied" so it stays purchasable either way.
+        sizes: parseSizeInput(form.sizes),
+        colors: parseColorInput(form.colors),
       };
 
       if (id) {

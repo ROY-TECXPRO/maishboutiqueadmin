@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Heart, Share2, Minus, Plus, ShoppingBag, Check, Star, Truck, RefreshCw, Shield } from 'lucide-react';
-import { products, formatPrice, calculateDiscount, categories } from '@/data/products';
+import { ChevronLeft, ChevronRight, Heart, Share2, Minus, Plus, ShoppingBag, Check, Star, Truck, RefreshCw, Shield, Loader2 } from 'lucide-react';
+import { formatPrice, calculateDiscount } from '@/data/products';
+import { useCatalog, findById } from '@/lib/catalog';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { ProductColor, Size } from '@/types';
@@ -11,14 +12,28 @@ import { ProductGrid } from '@/components/product/ProductGrid';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+/**
+ * Fallbacks for a product the admin created without sizes or colours.
+ * Without these the shopper would have nothing to select and the
+ * "Add to Cart" button would be permanently blocked.
+ */
+const DEFAULT_SIZES: Size[] = ['One Size'];
+const DEFAULT_COLORS: ProductColor[] = [
+  { name: 'As supplied', hex: '#9ca3af', available: true },
+];
+
 const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { isInWishlist, toggleItem } = useWishlist();
 
-  const product = products.find(p => p.id === productId);
-  
+  // Live catalogue, so a product created through the admin dashboard resolves
+  // here instead of 404-ing. Falls back to the static bundle automatically.
+  const { products, categories, isLoading, isFetching, source } = useCatalog();
+
+  const product = productId ? findById(products, productId) : undefined;
+
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState<Size | null>(null);
   const [selectedColor, setSelectedColor] = useState<ProductColor | null>(
@@ -30,6 +45,43 @@ const ProductDetailPage: React.FC = () => {
   const [isMobileZoomed, setIsMobileZoomed] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const imageRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Products created in the admin dashboard carry no `sizes` / `colors`
+   * (the Add Product form has no fields for them), so there is nothing for the
+   * shopper to pick. Fall back to "One Size" / a default swatch so such a
+   * product is immediately purchasable exactly like every other item.
+   */
+  const availableSizes = product?.sizes?.length ? product.sizes : DEFAULT_SIZES;
+  const availableColors = product?.colors?.length ? product.colors : DEFAULT_COLORS;
+
+  // The catalogue query is still in flight and this id is not in the static
+  // fallback, so the product genuinely may exist. Wait instead of 404-ing.
+  const isResolvingProduct =
+    !product && (isLoading || (isFetching && source === 'static'));
+
+  // Default the selection once the real product arrives (a product loaded
+  // from the database after the first paint has no selection yet).
+  useEffect(() => {
+    if (!product) return;
+    setSelectedColor((prev) => prev ?? product.colors.find((c) => c.available) ?? DEFAULT_COLORS[0]);
+    setSelectedSize((prev) => prev ?? (product.sizes[0] ?? DEFAULT_SIZES[0]));
+    // Reset transient UI when navigating between products.
+    setSelectedImage(0);
+    setQuantity(1);
+    setSizeError(false);
+  }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isResolvingProduct) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center" role="status" aria-live="polite">
+          <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading product…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -59,18 +111,23 @@ const ProductDetailPage: React.FC = () => {
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    if (!selectedSize) {
+    // A product may legitimately have no variants (admin-created products do).
+    // Resolve to the fallback rather than blocking the purchase.
+    const size = selectedSize ?? availableSizes[0];
+    const color = selectedColor ?? availableColors[0];
+
+    if (!size) {
       setSizeError(true);
       toast.error('Please select a size');
       return;
     }
-    if (!selectedColor) {
+    if (!color) {
       toast.error('Please select a color');
       return;
     }
 
     // Add item with the current price (which includes size-specific pricing if applicable)
-    addItem({ ...product, price: currentPrice }, selectedSize, selectedColor, quantity);
+    addItem({ ...product, price: currentPrice }, size, color, quantity);
   };
 
   const handleShare = async () => {
@@ -113,18 +170,24 @@ const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="page-transition">
-      {/* Breadcrumb */}
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">Home</Link>
-          <span>/</span>
-          <Link to={`/category/${product.category}`} className="hover:text-foreground">
-            {category?.name}
-          </Link>
-          <span>/</span>
-          <span className="text-foreground line-clamp-1">{product.name}</span>
-        </div>
-      </div>
+      {/* Breadcrumb — semantic nav so assistive tech and crawlers can traverse it */}
+      <nav aria-label="Breadcrumb" className="container mx-auto px-4 py-3">
+        <ol className="flex items-center gap-2 text-sm text-muted-foreground">
+          <li>
+            <Link to="/" className="hover:text-foreground">Home</Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link to={`/category/${product.category}`} className="hover:text-foreground">
+              {category?.name}
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li className="text-foreground line-clamp-1" aria-current="page">
+            {product.name}
+          </li>
+        </ol>
+      </nav>
 
       <div className="container mx-auto px-0 md:px-4 pb-8">
         <div className="grid md:grid-cols-2 gap-0 md:gap-10">
@@ -257,7 +320,7 @@ const ProductDetailPage: React.FC = () => {
                 <h1 className="font-display text-xl md:text-3xl font-bold">
                   {product.name}
                 </h1>
-                <p className="text-muted-foreground mt-1">{product.subcategory}</p>
+                <p className="text-muted-foreground mt-1">{product.subCategory}</p>
               </div>
               
               {/* Desktop Actions */}
@@ -316,7 +379,7 @@ const ProductDetailPage: React.FC = () => {
                 <span className="text-sm text-muted-foreground">{selectedColor?.name || 'Select color'}</span>
               </div>
               <div className="flex gap-2">
-                {product.colors.map(color => (
+                {availableColors.map(color => (
                   <button
                     key={color.name}
                     onClick={() => color.available && setSelectedColor(color)}
@@ -347,7 +410,7 @@ const ProductDetailPage: React.FC = () => {
                 <button className="text-sm text-primary hover:underline">Size Guide</button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {product.sizes.map(size => (
+                {availableSizes.map(size => (
                   <button
                     key={size}
                     onClick={() => {

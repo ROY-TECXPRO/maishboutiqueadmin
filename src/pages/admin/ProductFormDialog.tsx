@@ -23,6 +23,10 @@ export interface ProductFormState {
   is_active: boolean;
   is_new: boolean;
   is_sale: boolean;
+  /** Comma-separated; empty means the product has no size variants. */
+  sizes: string;
+  /** Comma-separated "Name|#hex" pairs; empty means no colour variants. */
+  colors: string;
   images: Array<{ src: string; alt: string }>;
 }
 
@@ -39,8 +43,40 @@ export const emptyProductForm: ProductFormState = {
   is_active: true,
   is_new: false,
   is_sale: false,
+  sizes: '',
+  colors: '',
   images: [],
 };
+
+/**
+ * Parses the free-text variant inputs into the shapes the database expects.
+ *
+ * A product with no sizes/colors is perfectly valid — the storefront renders
+ * "One Size" for it — so both parsers return an empty array rather than
+ * forcing the admin to invent variants.
+ *
+ * "Red|#ff0000, Blue|#0000ff" -> [{name:'Red',hex:'#ff0000',available:true}, ...]
+ * "Red, Blue"                  -> name only, a neutral swatch is used.
+ */
+export function parseColorInput(raw: string): Array<{ name: string; hex: string; available: boolean }> {
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [name, hex] = part.split('|').map((p) => p.trim());
+      const cleanHex = hex && /^#[0-9a-f]{3,8}$/i.test(hex) ? hex : '';
+      return { name, hex: cleanHex, available: true };
+    })
+    .filter((c) => c.name.length > 0);
+}
+
+export function parseSizeInput(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export interface ProductFormDialogProps {
   open: boolean;
@@ -227,6 +263,33 @@ export function ProductFormDialog({
               <option value="Kids">Kids</option>
               <option value="Unisex">Unisex</option>
             </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="pf-sizes">Sizes</Label>
+            <Input
+              id="pf-sizes"
+              value={form.sizes}
+              onChange={(e) => set('sizes', e.target.value)}
+              placeholder="S, M, L, XL  — or leave blank for One Size"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Separate with commas. Leave blank and the product is sold as “One Size”.
+            </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="pf-colors">Colours</Label>
+            <Input
+              id="pf-colors"
+              value={form.colors}
+              onChange={(e) => set('colors', e.target.value)}
+              placeholder="Black|#1f2937, Red|#dc2626, Blue|#2563eb"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Separate with commas, optionally as “Name|#hex”. Leave blank for a single
+              “As supplied” colour.
+            </p>
           </div>
 
           <div className="sm:col-span-2">
