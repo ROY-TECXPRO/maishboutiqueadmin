@@ -579,11 +579,96 @@ create policy "admin_activity_log_staff_insert" on public.admin_activity_log
   for insert to authenticated
   with check (public.is_staff());
 
-drop policy if exists "admin_activity_log_admin_select" on public.admin_activity_log;
-create policy "admin_activity_log_admin_select" on public.admin_activity_log
-  for select to authenticated
-  using (public.is_admin());
+-- The SELECT policy is created further down, once the owner allow-list
+-- table exists. It used to be "any admin"; it is now owner-only.
 
+-- ============================================================
+-- MAISH FASHION BOUTIQUE — OWNER-ONLY ACTIVITY LOG
+-- Project ref: xttlmtwoenntqbrhkkox
+--
+-- 1. Grants admin to maishboutique@gmail.com (the shop account).
+-- 2. Narrows admin_activity_log SELECT from "any admin" to the
+--    main admin only (roysanga127@gmail.com).
+--
+-- INSERT is deliberately left open to all staff so everyone can
+-- still record what they did; only *reading* the trail is locked
+-- down. Without this, every admin could read everyone else's
+-- history.
+-- ============================================================
+
+-- 1. Promote the shop account to admin -----------------------------
+-- The profiles row is keyed by id = auth.users.id, so the auth user
+-- must exist first (sign up once at /admin/login). This inserts the
+-- profile when missing and promotes it when present, so re-running
+-- is safe.
+do $$
+declare
+  v_user_id uuid;
+begin
+  select id into v_user_id
+  from auth.users
+  where lower(email) = 'maishboutique@gmail.com';
+
+  if v_user_id is null then
+    raise notice
+      'maishboutique@gmail.com is not in auth.users yet — create the account at /admin/login, then re-run this migration.';
+    return;
+  end if;
+
+  insert into public.profiles (id, email, role)
+  values (v_user_id, 'maishboutique@gmail.com', 'admin')
+  on conflict (id) do update
+    set role = 'admin',
+        email = 'maishboutique@gmail.com',
+        updated_at = now();
+
+  raise notice 'maishboutique@gmail.com promoted to admin.';
+end;
+$$;
+
+-- 2. Owner-only reader ---------------------------------------------
+-- The allow-list lives in its own table so the owner can be changed
+-- later with a single UPDATE instead of editing this function again.
+create table if not exists public.admin_activity_log_viewers (
+  email text primary key
+);
+
+insert into public.admin_activity_log_viewers (email)
+values ('roysanga127@gmail.com')
+on conflict (email) do nothing;
+
+create or replace function public.can_view_admin_activity_log(uid uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = uid
+      and lower(p.email) = any (
+        select lower(v.email) from public.admin_activity_log_viewers v
+      )
+  );
+$$;
+
+revoke all on function public.can_view_admin_activity_log(uuid) from public;
+grant execute on function public.can_view_admin_activity_log(uuid) to authenticated;
+
+-- Writing: any staff member, unchanged.
+drop policy if exists "admin_activity_log_staff_insert" on public.admin_activity_log;
+create policy "admin_activity_log_staff_insert" on public.admin_activity_log
+  for insert to authenticated
+  with check (public.is_staff());
+
+-- Reading: the main admin only.
+drop policy if exists "admin_activity_log_admin_select" on public.admin_activity_log;
+drop policy if exists "admin_activity_log_owner_select" on public.admin_activity_log;
+create policy "admin_activity_log_owner_select" on public.admin_activity_log
+  for select to authenticated
+  using (public.can_view_admin_activity_log());
 -- ============================================================
 -- END OF CONSOLIDATED SCHEMA
 -- ============================================================

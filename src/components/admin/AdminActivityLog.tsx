@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { History, Loader2, ShieldAlert } from 'lucide-react';
-import { fetchAdminActivity, type AdminActivityRecord } from '@/lib/adminActivity';
+import { fetchAdminActivity, canViewActivityLog, type AdminActivityRecord } from '@/lib/adminActivity';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,23 +48,25 @@ function formatDetails(details: Record<string, unknown> | null): string | null {
 /**
  * Read-only audit trail of admin actions.
  *
- * The underlying table is SELECT-protected by RLS to admins only, so staff
- * members see a clear "not permitted" notice instead of a broken list.
+ * Only the main admin may read it. The table is SELECT-protected by RLS, so a
+ * second admin would receive zero rows from the API regardless of what the
+ * browser asks for; this check simply avoids showing them a dead panel.
  */
 export function AdminActivityLog() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const isViewer = canViewActivityLog(user?.email);
 
   const query = useQuery({
     queryKey: ['admin-activity'],
     queryFn: () => fetchAdminActivity(50),
-    enabled: isAdmin,
+    enabled: isAdmin && isViewer,
   });
 
-  if (!isAdmin) {
+  if (!isViewer) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground flex items-center gap-2">
         <ShieldAlert className="h-4 w-4" />
-        The activity log is available to administrators only.
+        The activity log is restricted to the main administrator.
       </div>
     );
   }

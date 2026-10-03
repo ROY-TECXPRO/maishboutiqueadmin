@@ -23,7 +23,7 @@ import {
   hasAcceptedAdminTerms,
 } from '@/components/admin/AdminTermsDialog';
 import { useInvalidateCatalog } from '@/lib/catalog';
-import { logAdminActivity } from '@/lib/adminActivity';
+import { logAdminActivity, canViewActivityLog } from '@/lib/adminActivity';
 import { AdminActivityLog } from '@/components/admin/AdminActivityLog';
 import type { ProductRecord } from '@/types';
 import { Input } from '@/components/ui/input';
@@ -493,18 +493,22 @@ export default function AdminProductsPage() {
             {productsQuery.data?.length ?? 0}
           </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setSection('activity')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            section === 'activity'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <History className="h-4 w-4" />
-          Activity Log
-        </button>
+        {/* Only the main admin may read the log, so the tab is hidden entirely
+            for anyone else rather than leading to a "not permitted" panel. */}
+        {canViewActivityLog(user?.email) && (
+          <button
+            type="button"
+            onClick={() => setSection('activity')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              section === 'activity'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <History className="h-4 w-4" />
+            Activity Log
+          </button>
+        )}
       </div>
 
       {/* ---- Audit trail of admin actions ---- */}

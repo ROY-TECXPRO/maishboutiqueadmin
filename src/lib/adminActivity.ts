@@ -75,7 +75,23 @@ export async function logAdminActivity(entry: AdminLogEntry): Promise<void> {
   }
 }
 
-/** Reads the most recent activity. Admins only (enforced by RLS). */
+/**
+ * The main admin, who alone may read the activity log.
+ *
+ * RLS on `admin_activity_log` is the real boundary — a second admin
+ * signing in still gets zero rows from the API, whatever the browser
+ * sends. This list only exists so the UI can hide the tab instead of
+ * showing an admin a panel they are not allowed to open.
+ */
+export const ACTIVITY_LOG_VIEWER_EMAIL = 'roysanga127@gmail.com';
+
+/** True only for the main admin's account. */
+export function canViewActivityLog(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === ACTIVITY_LOG_VIEWER_EMAIL;
+}
+
+/** Reads the most recent activity. Owner only (enforced by RLS). */
 export async function fetchAdminActivity(limit = 50): Promise<AdminActivityRecord[]> {
   const { data, error } = await supabase
     .from('admin_activity_log')
