@@ -7,6 +7,7 @@ import { CategoryGrid } from '@/components/category/CategoryCard';
 import { ReviewsSlider } from '@/components/reviews/ReviewCard';
 import { googleReviews } from '@/data/products';
 import { useCatalog, selectNewArrivals, selectSaleProducts } from '@/lib/catalog';
+import type { Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 
@@ -18,7 +19,7 @@ type CountdownParts = {
 };
 
 type CampaignSlide = {
-  id: 'world-cup' | 'mega-store';
+  id: 'season-uniforms' | 'mega-store';
   eyebrow: string;
   headline: string;
   subheadline: string;
@@ -42,30 +43,42 @@ type CampaignCard = {
   alt: string;
 };
 
-const WORLD_CUP_FINAL_DEADLINE = Date.UTC(2026, 6, 19, 23, 59, 59);
+/**
+ * The uniform, bedding and hotel-supplies season runs to the end of 2026.
+ * The hero rotates to the season slide only while this window is open, exactly
+ * as the previous campaign did.
+ */
+const SEASON_DEADLINE = Date.UTC(2026, 11, 31, 23, 59, 59);
+
+/**
+ * Hero image. The supplied asset ships as `HERO-IMAGE.webp.png` but is really
+ * a PNG; it was converted to a true .webp (520 KB -> 45 KB) so the hero stays
+ * fast on mobile. Both hero slides reuse it.
+ */
+const HERO_IMAGE = '/images/HERO-IMAGE.webp';
 
 const campaignSlides: CampaignSlide[] = [
   {
-    id: 'world-cup',
-    eyebrow: 'FIFA World Cup 2026',
-    headline: 'FIFA World Cup 2026 Fan Zone',
-    subheadline: 'Support your team in style with premium football jerseys, training kits, boots, fan merchandise and sportswear collections.',
-    primaryLabel: 'Shop World Cup Collection',
-    secondaryLabel: 'Browse Team Jerseys',
-    primaryTo: '/category/sports-equipment',
-    secondaryTo: '/category/sports-equipment',
-    image: '/images/world-cup jerseys.webp',
-    imageAlt: 'Football jerseys and fan merchandise for the FIFA World Cup',
-    accent: 'from-emerald-400 via-green-500 to-blue-600',
+    id: 'season-uniforms',
+    eyebrow: 'Hotel & Workwear Season',
+    headline: 'Uniforms, Beddings & Curtains',
+    subheadline: 'Hotel staff uniforms, security and rangers wear, beddings, curtains and everyday fashion, delivered countrywide in 1-5 days.',
+    primaryLabel: 'Shop Uniforms',
+    secondaryLabel: 'Browse Hotel Supplies',
+    primaryTo: '/category/uniform-center',
+    secondaryTo: '/category/hotel-supplies',
+    image: HERO_IMAGE,
+    imageAlt: 'Hotel uniforms, beddings and curtains at Maish Fashion Boutique',
+    accent: 'from-emerald-700 via-teal-700 to-cyan-700',
   },
   {
     id: 'mega-store',
     eyebrow: 'Maish Mega Store',
     headline: 'Everything You Need Under One Roof',
-    subheadline: 'Fashion, Mattresses, Uniforms, Sports Equipment, Hotel Supplies, Bags, Footwear and More.',
+    subheadline: 'Fashion, Mattresses, Uniforms, Hotel Supplies, Bedding, Curtains, Bags, Footwear and More.',
     primaryLabel: 'Explore Collections',
     primaryTo: '/categories',
-    image: '/images/hotel/hotel-reception.webp',
+    image: HERO_IMAGE,
     imageAlt: 'Maish Fashion Boutique mega store product collections',
     accent: 'from-primary via-accent to-amber-400',
   },
@@ -82,12 +95,17 @@ const megaBadges = [
   '✓ Bags & Travel',
 ];
 
+/**
+ * Scrolling season ticker. These are duplicated and animated as a marquee, so
+ * they are kept short — long strings push the scroll speed up and become
+ * unreadable on small screens.
+ */
 const promoMessages = [
-  "⚽ FIFA World Cup Collection Available Now",
-  "⚽ New Team Jerseys Just Arrived",
-  "⚽ Shop Official Fan Merchandise",
-  "⚽ Support Your Team In Style",
-  "⚽ Limited World Cup Season Specials",
+  "✦ Summer Uniforms & Workwear Collection",
+  "✦ Hotel Staff Uniforms, Aprons & Linen",
+  "✦ Bedding, Mattresses & Bed Linen",
+  "✦ Curtains & Window Treatments",
+  "✦ Rangers, Security & Corporate Wear",
 ];
 
 const getNairobiTimestamp = () => {
@@ -154,13 +172,29 @@ const HomePage = () => {
   const saleProducts = selectSaleProducts(liveProducts, 12);
   const popularProducts = liveProducts.slice(0, 8);
   const accessoriesProducts = liveProducts.filter(p => p.category === 'accessories').slice(0, 8);
+
+  /**
+   * The season spotlight: uniforms, workwear, hotel supplies and bedding.
+   * Falls back to the newest arrivals when those categories have no stock yet,
+   * so the row is never empty on a freshly seeded catalogue.
+   */
+  const seasonProducts = useMemo(() => {
+    const seasonCategories: Category[] = [
+      'uniform-center',
+      'work-wear',
+      'hotel-supplies',
+      'mattress-center',
+    ];
+    const inSeason = liveProducts.filter((p) => seasonCategories.includes(p.category));
+    return (inSeason.length ? inSeason : newArrivals).slice(0, 8);
+  }, [liveProducts, newArrivals]);
   const [nowTs, setNowTs] = useState(getNairobiTimestamp);
   const [activeIndex, setActiveIndex] = useState(0);
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  const worldCupIsActive = nowTs < WORLD_CUP_FINAL_DEADLINE;
-  const worldCupCountdown = formatCountdown(WORLD_CUP_FINAL_DEADLINE - nowTs);
+  const seasonIsActive = nowTs < SEASON_DEADLINE;
+  const seasonCountdown = formatCountdown(SEASON_DEADLINE - nowTs);
 
   useEffect(() => {
     preloadHeroImages(campaignSlides.map(s => s.image));
@@ -172,9 +206,9 @@ const HomePage = () => {
   }, []);
 
   const activeSlides = useMemo(() => campaignSlides.filter(slide => {
-    if (slide.id === 'world-cup') return worldCupIsActive;
+    if (slide.id === 'season-uniforms') return seasonIsActive;
     return true;
-  }), [worldCupIsActive]);
+  }), [seasonIsActive]);
 
   const activeSlideKeys = activeSlides.map(slide => slide.id).join('|');
 
@@ -194,41 +228,77 @@ const HomePage = () => {
   const featuredCards = useMemo<CampaignCard[]>(() => {
     const cards: CampaignCard[] = [];
 
-    cards.push({
-      id: 'world-cup-fan-zone',
-      badge: 'World Cup Fan Zone',
-      title: 'World Cup Fan Zone',
-      description: 'Jerseys, boots, training kits, sportswear and fan accessories for match-day energy.',
-      cta: 'Shop Sports',
-      to: '/category/sports-equipment',
-      image: '/images/world-cup jerseys.webp',
-      alt: 'Sports collection and fan merchandise for the World Cup',
-    });
+    // Uniforms & workwear — the season's focus, driven by what is actually in
+    // the catalogue so an empty category simply drops out of the row.
+    const byCategory = (slug: string) => liveProducts.filter((p) => p.category === slug);
+    const uniforms = byCategory('uniform-center');
+    const workWear = byCategory('work-wear');
+    const hotel = byCategory('hotel-supplies');
+    const bedding = byCategory('mattress-center');
+    const women = byCategory('women-wear');
 
-    cards.push({
-      id: 'new-jersey-arrivals',
-      badge: 'New Jersey Arrivals',
-      title: 'New Jersey Arrivals',
-      description: 'Fresh football jerseys from top teams. Argentina, Brazil, England, Germany, France, Portugal, Spain and Netherlands.',
-      cta: 'Browse Jerseys',
-      to: '/category/sports-equipment',
-      image: '/images/world-cup jerseys.webp',
-      alt: 'New World Cup jersey arrivals',
-    });
+    const pushIfPresent = (card: CampaignCard, pool: unknown[]) => {
+      if (pool.length > 0) cards.push(card);
+    };
 
-    cards.push({
-      id: 'sports-training-collection',
-      badge: 'Sports & Training Collection',
-      title: 'Sports & Training Collection',
-      description: 'Training kits, sportswear, football boots and everything you need for the pitch.',
-      cta: 'Shop Sports',
-      to: '/category/sports-equipment',
-      image: '/images/world-cup jerseys.webp',
-      alt: 'Sports and training collection',
-    });
+    pushIfPresent(
+      {
+        id: 'uniforms-workwear',
+        badge: 'Uniforms & Workwear',
+        title: 'Uniforms & Workwear',
+        description: 'School uniforms, corporate wear, overalls and workwear stitched to order for teams and businesses.',
+        cta: 'Shop Uniforms',
+        to: '/category/uniform-center',
+        image: HERO_IMAGE,
+        alt: 'Uniforms and workwear collection',
+      },
+      [...uniforms, ...workWear]
+    );
+
+    pushIfPresent(
+      {
+        id: 'hotel-supplies',
+        badge: 'Hotel & Lodging',
+        title: 'Hotel & Lodging Supplies',
+        description: 'Housekeeping wear, front desk uniforms, aprons and everything a busy hotel needs on restock day.',
+        cta: 'Shop Hotel Supplies',
+        to: '/category/hotel-supplies',
+        image: HERO_IMAGE,
+        alt: 'Hotel supplies and housekeeping uniforms',
+      },
+      hotel
+    );
+
+    pushIfPresent(
+      {
+        id: 'bedding-mattresses',
+        badge: 'Bedding & Mattresses',
+        title: 'Bedding & Mattresses',
+        description: 'Mattresses, bed linen, blankets and pillows for guest rooms and family bedrooms across Kenya.',
+        cta: 'Shop Bedding',
+        to: '/category/mattress-center',
+        image: HERO_IMAGE,
+        alt: 'Bedding, mattresses and bed linen',
+      },
+      bedding
+    );
+
+    pushIfPresent(
+      {
+        id: 'womens-fashion',
+        badge: 'Women’s Fashion',
+        title: 'Everyday Women’s Fashion',
+        description: 'Dresses, skirts, tops and office wear that still look good after a twelve-hour shift.',
+        cta: 'Shop Women Wear',
+        to: '/category/women-wear',
+        image: HERO_IMAGE,
+        alt: 'Everyday womens fashion collection',
+      },
+      women
+    );
 
     return cards;
-  }, []);
+  }, [liveProducts]);
 
   const handleSubscribe = async (e: FormEvent) => {
     e.preventDefault();
@@ -283,32 +353,23 @@ const HomePage = () => {
   };
 
   const renderHeroVisual = (slide: CampaignSlide) => {
-    if (slide.id === 'world-cup') {
+    if (slide.id === 'season-uniforms') {
       return (
-        <div className="relative hidden h-full min-h-[32rem] overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 md:block md:shadow-2xl md:shadow-emerald-950/30">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.35),transparent_30%),radial-gradient(circle_at_80%_30%,rgba(59,130,246,0.28),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.2),rgba(15,23,42,0.92))]" />
-          <div className="absolute inset-x-0 top-0 h-1/3 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.3),transparent_45%)] opacity-70" />
-          <div className="absolute left-8 top-10 h-24 w-2 rounded-full bg-white/70 blur-sm" />
-          <div className="absolute right-12 top-14 h-28 w-2 rounded-full bg-emerald-200/60 blur-sm" />
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-[radial-gradient(circle,rgba(16,185,129,0.25)_1px,transparent_1px)] bg-[length:18px_18px] opacity-40" />
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
-            className="absolute right-8 top-24 grid h-36 w-36 place-items-center rounded-full border border-white/20 bg-white/10 shadow-2xl shadow-emerald-400/20 backdrop-blur-xl"
-          >
-            <div className="relative h-28 w-28 rounded-full bg-white shadow-xl">
-              <div className="absolute inset-4 rounded-full border-4 border-slate-950/80" />
-              <div className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-xl border-4 border-slate-950/80 bg-white" />
-              <div className="absolute left-3 top-3 h-6 w-6 rounded-full bg-slate-950/80" />
-              <div className="absolute right-3 bottom-3 h-6 w-6 rounded-full bg-slate-950/80" />
-            </div>
-          </motion.div>
+        <div className="relative hidden h-full min-h-[32rem] overflow-hidden rounded-[2rem] border border-white/20 bg-emerald-950 md:block md:shadow-2xl md:shadow-emerald-950/30">
+          <img
+            src={slide.image}
+            alt={slide.imageAlt}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/85 via-emerald-950/25 to-transparent" />
           <div className="absolute bottom-8 left-8 right-8 rounded-3xl border border-white/[0.15] bg-white/10 p-5 text-white backdrop-blur-xl">
             <div className="flex items-center gap-3">
               <Trophy className="h-7 w-7 text-emerald-300" />
               <div>
-                <p className="font-semibold">Match-Day Ready</p>
-                <p className="text-sm text-white/70">Jerseys, boots, kits and fan accessories</p>
+                <p className="font-semibold">One Supplier, Every Season</p>
+                <p className="text-sm text-white/70">Uniforms, beddings, curtains and everyday fashion</p>
               </div>
             </div>
           </div>
@@ -350,7 +411,7 @@ const HomePage = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,hsl(var(--accent)/0.16),transparent_30%),radial-gradient(circle_at_85%_20%,hsl(var(--primary)/0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_15%_10%,hsl(var(--accent)/0.1),transparent_30%),radial-gradient(circle_at_85%_20%,hsl(var(--primary)/0.12),transparent_32%)]" />
         <div className="relative min-h-[calc(100svh-5rem)]">
           <div className="absolute inset-0">
-            <img src={slide.image} alt="" className="h-full w-full object-cover opacity-35 dark:opacity-20" />
+            <img src={slide.image} alt="" className="h-full w-full object-cover opacity-35 dark:opacity-20" loading="eager" fetchPriority="high" decoding="async" />
             <div className={`absolute inset-0 bg-gradient-to-br ${slide.accent} opacity-75 mix-blend-multiply dark:opacity-45`} />
             <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-background/[0.35] dark:from-background dark:via-background/80 dark:to-background/40" />
           </div>
@@ -380,7 +441,7 @@ const HomePage = () => {
                 {slide.subheadline}
               </p>
 
-              {slide.id === 'world-cup' && (
+              {slide.id === 'season-uniforms' && (
                 <motion.div
                   initial={false}
                   animate={{ opacity: 1, y: 0 }}
@@ -390,17 +451,17 @@ const HomePage = () => {
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-white">
                       <Clock className="h-4 w-4 text-emerald-300" />
-                      <span className="text-xs font-bold uppercase tracking-[0.2em]">World Cup Final Countdown</span>
+                      <span className="text-xs font-bold uppercase tracking-[0.2em]">Season Ends In</span>
                     </div>
                     <span className="rounded-full bg-emerald-300/20 px-3 py-1 text-xs font-bold text-emerald-100 ring-1 ring-emerald-200/30">
                       Nairobi Time
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    <CountdownUnit value={worldCupCountdown.days} label="Days" />
-                    <CountdownUnit value={worldCupCountdown.hours} label="Hours" />
-                    <CountdownUnit value={worldCupCountdown.minutes} label="Minutes" />
-                    <CountdownUnit value={worldCupCountdown.seconds} label="Seconds" />
+                    <CountdownUnit value={seasonCountdown.days} label="Days" />
+                    <CountdownUnit value={seasonCountdown.hours} label="Hours" />
+                    <CountdownUnit value={seasonCountdown.minutes} label="Minutes" />
+                    <CountdownUnit value={seasonCountdown.seconds} label="Seconds" />
                   </div>
                 </motion.div>
               )}
@@ -572,10 +633,10 @@ const HomePage = () => {
 
       <div className="container mx-auto px-4 md:px-0">
         <ProductGrid
-          products={newArrivals.filter(p => p.category === 'sports-equipment').slice(0, 8)}
-          title="New World Cup Arrivals"
-          subtitle="Fresh football jerseys and fan gear now available."
-          viewAllLink="/new-arrivals"
+          products={seasonProducts}
+          title="Uniforms & Bedding In Season"
+          subtitle="Hotel and workwear uniforms, bedding, curtains and more — ready for delivery."
+          viewAllLink="/category/uniform-center"
         />
       </div>
 
