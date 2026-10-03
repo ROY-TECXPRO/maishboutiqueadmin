@@ -263,7 +263,7 @@ const HomePage = () => {
         description: 'Housekeeping wear, front desk uniforms, aprons and everything a busy hotel needs on restock day.',
         cta: 'Shop Hotel Supplies',
         to: '/category/hotel-supplies',
-        image: HERO_IMAGE,
+        image: '/images/hotel-supplies.webp',
         alt: 'Hotel supplies and housekeeping uniforms',
       },
       hotel
@@ -277,7 +277,7 @@ const HomePage = () => {
         description: 'Mattresses, bed linen, blankets and pillows for guest rooms and family bedrooms across Kenya.',
         cta: 'Shop Bedding',
         to: '/category/mattress-center',
-        image: HERO_IMAGE,
+        image: '/images/beddings.webp',
         alt: 'Bedding, mattresses and bed linen',
       },
       bedding
@@ -291,7 +291,7 @@ const HomePage = () => {
         description: 'Dresses, skirts, tops and office wear that still look good after a twelve-hour shift.',
         cta: 'Shop Women Wear',
         to: '/category/women-wear',
-        image: HERO_IMAGE,
+        image: '/images/women.webp',
         alt: 'Everyday womens fashion collection',
       },
       women
